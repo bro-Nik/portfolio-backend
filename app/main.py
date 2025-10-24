@@ -1,29 +1,19 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
-from . import models, database
-from .routers import portfolios
+
+from app import database
+
 
 app = FastAPI(
     title="Portfolios API",
     description="API for managing user portfolios",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
-
-
-# Подключаем роутеры
-app.include_router(portfolios.router)
-
-
-@app.get("/")
-def read_root():
-    return {"message": "Portfolios API is running"}
-
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
