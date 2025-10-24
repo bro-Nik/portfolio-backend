@@ -24,7 +24,7 @@ class PortfolioResponse(BaseModel):
     name: str
     market: str
     comment: Optional[str] = None
-    assets: List[AssetResponse] = []
+    assets: List['AssetResponse'] = []
 
     class Config:
         from_attributes = True
@@ -44,9 +44,7 @@ class PortfolioDeleteResponse(BaseModel):
 class AssetResponse(BaseModel):
     """Модель ответа для актива"""
     id: int
-    asset_id: str
-    ticker: str
-    name: str
+    ticker_id: str
     quantity: float
     amount: float
     buy_orders: float
@@ -59,9 +57,7 @@ def _prepare_asset_response(asset: models.Asset) -> AssetResponse:
     """Подготовка данных актива для ответа"""
     return AssetResponse(
         id=asset.id,
-        asset_id=asset.ticker.id,
-        ticker=asset.ticker.symbol,
-        name=asset.ticker.name,
+        ticker_id=asset.ticker_id,
         quantity=asset.quantity,
         amount=asset.amount,
         buy_orders=asset.buy_orders,
@@ -123,7 +119,7 @@ async def get_user_portfolios(
         .where(models.Portfolio.user_id == current_user.id)
         .options(
             selectinload(models.Portfolio.assets)
-            .selectinload(models.Asset.ticker)
+            # .selectinload(models.Asset.ticker)
         )
     )
     portfolios = result.scalars().all()
