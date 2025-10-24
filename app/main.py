@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 
-from app import database
+from app import models, database
+from app.routers import portfolios
 
 
 app = FastAPI(
@@ -11,6 +12,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+
+# Подключаем роутеры
+app.include_router(portfolios.router)
 
 
 if __name__ == "__main__":
