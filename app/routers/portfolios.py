@@ -37,7 +37,6 @@ class PortfolioListResponse(BaseModel):
 
 class PortfolioDeleteResponse(BaseModel):
     """Модель ответа для удаления"""
-    message: str
     portfolio_id: int
 
 
@@ -51,6 +50,10 @@ class AssetResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TickerData(BaseModel):
+    ticker_id: str
 
 
 def _prepare_asset_response(asset: models.Asset) -> AssetResponse:
@@ -88,15 +91,19 @@ def _prepare_portfolio_response(
 async def _get_user_portfolio(
     portfolio_id: int,
     user_id: int,
-    db: AsyncSession
+    db: AsyncSession,
+    load_assets: bool = False
 ) -> models.Portfolio:
     """Получение портфеля с проверкой прав доступа"""
-    result = await db.execute(
-        select(models.Portfolio).where(
-            models.Portfolio.id == portfolio_id,
-            models.Portfolio.user_id == user_id
-        )
+    query = select(models.Portfolio).where(
+        models.Portfolio.id == portfolio_id,
+        models.Portfolio.user_id == user_id
     )
+
+    if load_assets:
+        query = query.options(selectinload(models.Portfolio.assets))
+
+    result = await db.execute(query)
     portfolio = result.scalar_one_or_none()
 
     if not portfolio:
@@ -119,7 +126,6 @@ async def get_user_portfolios(
         .where(models.Portfolio.user_id == current_user.id)
         .options(
             selectinload(models.Portfolio.assets)
-            # .selectinload(models.Asset.ticker)
         )
     )
     portfolios = result.scalars().all()
@@ -129,9 +135,7 @@ async def get_user_portfolios(
         for portfolio in portfolios
     ]
 
-    return PortfolioListResponse(
-        portfolios=portfolios_data
-    )
+    return PortfolioListResponse(portfolios=portfolios_data)
 
 
 @router.post("/", response_model=PortfolioResponse)
@@ -190,7 +194,97 @@ async def delete_portfolio(
     await db.delete(portfolio)
     await db.commit()
 
-    return PortfolioDeleteResponse(
-        message="Портфель успешно удален",
-        portfolio_id=portfolio_id
+    return PortfolioDeleteResponse(portfolio_id=portfolio_id)
+
+
+@router.post("/{portfolio_id}/assets", response_model=PortfolioResponse)
+async def add_asset_to_portfolio(
+    portfolio_id: int,
+    data: TickerData,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(database.get_db)
+) -> PortfolioResponse:
+    """Добавление актива в портфель"""
+    ticker_id = data.ticker_id
+
+    # Проверка прав на портфель
+    await _get_user_portfolio(portfolio_id, current_user.id, db)
+
+    # Валидация входных данных
+    if not ticker_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ID актива обязателен"
+        )
+
+    # ToDo Проверить существование тикера
+    # if not ticker:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail="Актив не найден"
+    #     )
+
+    # Проверяем, не добавлен ли уже этот актив в портфель
+    result = await db.execute(
+        select(models.Asset).where(
+            models.Asset.portfolio_id == portfolio_id,
+            models.Asset.ticker_id == ticker_id
+        )
     )
+    existing_asset = result.scalar_one_or_none()
+
+    if existing_asset:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот актив уже добавлен в портфель"
+        )
+
+    # Создаем новый актив
+    new_asset = models.Asset(
+        portfolio_id=portfolio_id,
+        ticker_id=ticker_id
+    )
+
+    db.add(new_asset)
+    await db.commit()
+    await db.refresh(new_asset)
+
+    # Возвращаем обновленный портфель
+    updated_portfolio = await _get_user_portfolio(portfolio_id, current_user.id, db, True)
+    return _prepare_portfolio_response(updated_portfolio, include_assets=True)
+
+
+@router.delete("/{portfolio_id}/assets/{asset_id}", response_model=PortfolioResponse)
+async def delete_asset_from_portfolio(
+    portfolio_id: int,
+    asset_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(database.get_db)
+) -> PortfolioResponse:
+    """Удаление актива из портфеля"""
+
+    # Проверка прав на портфель
+    await _get_user_portfolio(portfolio_id, current_user.id, db)
+
+    # Находим актив в портфеле
+    result = await db.execute(
+        select(models.Asset).where(
+            models.Asset.id == asset_id,
+            models.Asset.portfolio_id == portfolio_id
+        )
+    )
+    asset = result.scalar_one_or_none()
+
+    if not asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Актив не найден в портфеле"
+        )
+
+    # Удаляем актив
+    await db.delete(asset)
+    await db.commit()
+
+    # Возвращаем обновленный портфель
+    updated_portfolio = await _get_user_portfolio(portfolio_id, current_user.id, db, True)
+    return _prepare_portfolio_response(updated_portfolio, include_assets=True)

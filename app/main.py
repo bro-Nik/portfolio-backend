@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 
 from app import models, database
-from app.routers import portfolios
+from app.routers import portfolios, wallets
 
 
 app = FastAPI(

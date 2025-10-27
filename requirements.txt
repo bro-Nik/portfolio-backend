@@ -3,3 +3,6 @@ uvicorn
 sqlalchemy
 pymysql
 python-multipart
+asyncpg
+pyjwt
+pydantic[email]
