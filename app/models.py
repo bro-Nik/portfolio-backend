@@ -1,13 +1,8 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
-from sqlalchemy import Column, Integer, String, Float, Text, DateTime
-from sqlalchemy.sql import func
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, backref
-from sqlalchemy.orm import mapped_column
-from sqlalchemy.orm import relationship
+from sqlalchemy import Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 
 from .database import Base
 
@@ -70,8 +65,45 @@ class Transaction(Base):
 
     # Relationships
     portfolio: Mapped[Optional["Portfolio"]] = relationship(back_populates="transactions")
+    wallet: Mapped[Optional["Wallet"]] = relationship(back_populates='transactions')
     related_transaction: Mapped[Optional["Transaction"]] = relationship(
         foreign_keys=[related_transaction_id],
         remote_side=[id],
         uselist=False
+    )
+
+
+class Wallet(Base):
+    __tablename__ = "wallet"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    comment: Mapped[str | None] = mapped_column(String(1024))
+
+    # Relationships
+    assets: Mapped[List['WalletAsset']] = relationship(back_populates="wallet")
+    transactions: Mapped[List['Transaction']] = relationship(back_populates='wallet',
+                                          order_by='Transaction.date.desc()')
+
+
+class WalletAsset(Base):
+    __tablename__ = "wallet_asset"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticker_id: Mapped[str] = mapped_column(String(256))
+    wallet_id: Mapped[int] = mapped_column(ForeignKey("wallet.id"))
+    quantity: Mapped[float] = mapped_column(Float, default=0.0)
+    buy_orders: Mapped[float] = mapped_column(Float, default=0.0)
+    sell_orders: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Relationships
+    wallet: Mapped["Wallet"] = relationship(back_populates="assets")
+    transactions: Mapped[List['Transaction']] = relationship(
+        "Transaction",
+        primaryjoin="and_(or_(WalletAsset.ticker_id == foreign(Transaction.ticker_id),"
+                    "WalletAsset.ticker_id == foreign(Transaction.ticker2_id)),"
+                    "WalletAsset.wallet_id == foreign(Transaction.wallet_id))",
+        viewonly=True,
+        backref=backref('wallet_asset', lazy=True)
     )
