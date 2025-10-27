@@ -16,6 +16,7 @@ app = FastAPI(
 
 # Подключаем роутеры
 app.include_router(portfolios.router)
+app.include_router(wallets.router)
 
 
 if __name__ == "__main__":

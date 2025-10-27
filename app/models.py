@@ -58,7 +58,7 @@ class Transaction(Base):
     price_usd: Mapped[Optional[float]] = mapped_column(Float)
     type: Mapped[str] = mapped_column(String(24))
     comment: Mapped[Optional[str]] = mapped_column(String(1024))
-    wallet_id: Mapped[int] = mapped_column(Integer)
+    wallet_id: Mapped[int] = mapped_column(Integer, ForeignKey("wallet.id"))
     portfolio_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("portfolio.id"))
     order: Mapped[bool] = mapped_column(default=False)
     related_transaction_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("transaction.id"))
@@ -82,7 +82,7 @@ class Wallet(Base):
     comment: Mapped[str | None] = mapped_column(String(1024))
 
     # Relationships
-    assets: Mapped[List['WalletAsset']] = relationship(back_populates="wallet")
+    assets: Mapped[List["WalletAsset"]] = relationship(back_populates="wallet", lazy="select")
     transactions: Mapped[List['Transaction']] = relationship(back_populates='wallet',
                                           order_by='Transaction.date.desc()')
 
