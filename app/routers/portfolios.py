@@ -1,59 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 from app import models, database
 from app.dependencies.auth import get_current_user, User
+from app.schemas.portfolio import AssetResponse, PortfolioResponse, \
+        PortfolioListResponse, PortfolioEdit, PortfolioDeleteResponse, TickerData
+
 
 router = APIRouter(prefix="/api/portfolios", tags=["portfolios"])
-
-
-class PortfolioEdit(BaseModel):
-    """Модель для создания и обновления портфеля"""
-    name: str
-    market: str
-    comment: Optional[str] = None
-
-
-class PortfolioResponse(BaseModel):
-    """Модель ответа для портфеля"""
-    id: int
-    name: str
-    market: str
-    comment: Optional[str] = None
-    assets: List['AssetResponse'] = []
-
-    class Config:
-        from_attributes = True
-
-
-class PortfolioListResponse(BaseModel):
-    """Модель ответа для списка портфелей"""
-    portfolios: List[PortfolioResponse]
-
-
-class PortfolioDeleteResponse(BaseModel):
-    """Модель ответа для удаления"""
-    portfolio_id: int
-
-
-class AssetResponse(BaseModel):
-    """Модель ответа для актива"""
-    id: int
-    ticker_id: str
-    quantity: float
-    amount: float
-    buy_orders: float
-
-    class Config:
-        from_attributes = True
-
-
-class TickerData(BaseModel):
-    ticker_id: str
 
 
 def _prepare_asset_response(asset: models.Asset) -> AssetResponse:
@@ -288,3 +245,86 @@ async def delete_asset_from_portfolio(
     # Возвращаем обновленный портфель
     updated_portfolio = await _get_user_portfolio(portfolio_id, current_user.id, db, True)
     return _prepare_portfolio_response(updated_portfolio, include_assets=True)
+
+
+@router.get("/assets/{asset_id}")
+async def get_asset(
+    asset_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(database.get_db)
+):
+    """
+    Получить детальную информацию об активе включая историю, аналитику и т.д.
+    """
+    # Загружаем актив с тикером и портфелем
+    result = await db.execute(
+        select(models.Asset)
+        .join(models.Portfolio)
+        .where(
+            models.Asset.id == asset_id,
+            models.Portfolio.user_id == int(current_user.id)
+        )
+        .options(
+            selectinload(models.Asset.portfolio),
+            selectinload(models.Asset.transactions)
+        )
+    )
+    asset = result.scalar_one_or_none()
+
+    if not asset:
+        raise HTTPException(status_code=404, detail="Актив не найден")
+
+    asset_transactions = []
+    for transaction in asset.transactions:
+        asset_transactions.append({
+            "id": transaction.id,
+            "portfolio_id": transaction.portfolio_id,
+            "wallet_id": transaction.wallet_id,
+            "date": transaction.date,
+            "ticker_id": transaction.ticker_id,
+            "ticker2_id": transaction.ticker2_id,
+            "quantity": transaction.quantity,
+            "quantity2": transaction.quantity2,
+            "price": transaction.price,
+            "type": transaction.type,
+            "comment": transaction.comment,
+        })
+
+    # Рассчитываем распределение по портфелям (если актив есть в нескольких портфелях)
+    result_all = await db.execute(
+        select(models.Asset)
+        .join(models.Asset.portfolio)
+        .where(
+            models.Asset.ticker_id == asset.ticker_id,
+            models.Portfolio.user_id == current_user.id
+        )
+        .options(selectinload(models.Asset.portfolio))
+    )
+    all_assets_same_ticker = result_all.scalars().all()
+
+    portfolio_distribution = []
+    total_quantity_all_portfolios = 0
+    total_amount_all_portfolios = 0
+
+    for asset_item in all_assets_same_ticker:
+        total_quantity_all_portfolios += asset_item.quantity
+        total_amount_all_portfolios += asset_item.amount
+        portfolio_distribution.append({
+            "portfolio_id": asset_item.portfolio.id,
+            "portfolio_name": asset_item.portfolio.name,
+            "quantity": asset_item.quantity,
+            "amount": asset_item.amount,
+            "percentage_of_total": (asset_item.quantity / total_quantity_all_portfolios * 100) if total_quantity_all_portfolios > 0 else 0
+        })
+
+    # Формируем ответ
+    asset_detail = {
+        "transactions": asset_transactions,
+        "distribution": {
+            "total_quantity_all_portfolios": total_quantity_all_portfolios,
+            "total_amount_all_portfolios": total_amount_all_portfolios,
+            "portfolios": portfolio_distribution
+        },
+    }
+
+    return asset_detail
