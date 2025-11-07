@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
 
 
 class PortfolioEdit(BaseModel):
@@ -11,6 +11,7 @@ class PortfolioEdit(BaseModel):
 
 class PortfolioResponse(BaseModel):
     """Модель ответа для портфеля"""
+
     id: int
     name: str
     market: str
@@ -29,19 +30,3 @@ class PortfolioListResponse(BaseModel):
 class PortfolioDeleteResponse(BaseModel):
     """Модель ответа для удаления"""
     portfolio_id: int
-
-
-class AssetResponse(BaseModel):
-    """Модель ответа для актива"""
-    id: int
-    ticker_id: str
-    quantity: float
-    amount: float
-    buy_orders: float
-
-    class Config:
-        from_attributes = True
-
-
-class TickerData(BaseModel):
-    ticker_id: str
