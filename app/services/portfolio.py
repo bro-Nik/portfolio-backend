@@ -1,4 +1,5 @@
 from typing import List
+from app.services.portfolio_asset import PortfolioAssetService
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
@@ -12,6 +13,7 @@ class PortfolioService:
         self.db = db
         self.portfolio_repo = PortfolioRepository()
         self.asset_repo = AssetRepository()
+        self.asset_service = PortfolioAssetService(db)
 
     async def get_user_portfolios(self, user_id: int) -> List[models.Portfolio]:
         """Получение всех портфелей пользователя"""
@@ -19,7 +21,7 @@ class PortfolioService:
             self.db, user_id, include_assets=True
         )
 
-    async def get_portfolio(self, portfolio_id: int, user_id: int) -> models.Portfolio:
+    async def get_user_portfolio(self, portfolio_id: int, user_id: int) -> models.Portfolio:
         """Получение портфеля с проверкой прав доступа"""
         portfolio = await self.portfolio_repo.get_by_id_with_assets(self.db, portfolio_id)
 
@@ -50,7 +52,7 @@ class PortfolioService:
         await self.db.refresh(portfolio)
 
         # Получаем портфель с загруженными связями
-        portfolio = await self.get_portfolio(portfolio.id, user_id)
+        portfolio = await self.get_user_portfolio(portfolio.id, user_id)
 
         return portfolio
 
@@ -61,7 +63,7 @@ class PortfolioService:
         portfolio_data: PortfolioEdit
     ) -> models.Portfolio:
         """Обновление портфеля"""
-        portfolio = await self.get_portfolio(portfolio_id, user_id)
+        portfolio = await self.get_user_portfolio(portfolio_id, user_id)
 
         # Проверка уникальности имени (если имя изменилось)
         if portfolio_data.name != portfolio.name:
@@ -82,7 +84,7 @@ class PortfolioService:
 
     async def delete_portfolio(self, portfolio_id: int, user_id: int) -> None:
         """Удаление портфеля"""
-        await self.get_portfolio(portfolio_id, user_id)
+        await self.get_user_portfolio(portfolio_id, user_id)
         await self.portfolio_repo.delete(self.db, portfolio_id)
 
         await self.db.commit()
@@ -94,10 +96,10 @@ class PortfolioService:
         ticker_id: str
     ) -> models.Portfolio:
         """Добавление актива в портфель"""
-        portfolio = await self.get_portfolio(portfolio_id, user_id)
+        portfolio = await self.get_user_portfolio(portfolio_id, user_id)
 
         # Проверка, что актив еще не добавлен
-        if await self.portfolio_repo.asset_exists(self.db, portfolio_id, ticker_id):
+        if await self.asset_service.get(ticker_id, portfolio_id):
             raise ValueError("Этот актив уже добавлен в портфель")
 
         # Создание актива
@@ -119,7 +121,7 @@ class PortfolioService:
         asset_id: int
     ) -> models.Portfolio:
         """Удаление актива из портфеля"""
-        portfolio = await self.get_portfolio(portfolio_id, user_id)
+        portfolio = await self.get_user_portfolio(portfolio_id, user_id)
 
         # Проверка, что актив существует в портфеле
         asset = await self.asset_repo.get_by_id(self.db, asset_id)
@@ -154,6 +156,7 @@ class PortfolioService:
                 "quantity": transaction.quantity,
                 "quantity2": transaction.quantity2,
                 "price": transaction.price,
+                "price_usd": transaction.price_usd,
                 "type": transaction.type,
                 "comment": transaction.comment,
             })

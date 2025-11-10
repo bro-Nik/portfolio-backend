@@ -16,6 +16,12 @@ from .wallet import (
     WalletDeleteResponse,
 )
 
+from .transaction import (
+    TransactionResponse,
+    TransactionCreate,
+    TransactionUpdate
+)
+
 from .ticker import TickerData
 
 # Перестраиваем модели с форвард-декларациями
@@ -33,5 +39,8 @@ __all__ = [
     "WalletListResponse",
     "WalletResponse",
     "WalletDeleteResponse",
+    "TransactionResponse",
+    "TransactionCreate",
+    "TransactionUpdate",
     "TickerData"
 ]

@@ -1,15 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies.auth import get_current_user, User
-from app.dependencies.portfolio import get_portfolio_service
+from app.dependencies.portfolio import get_portfolio_service, get_portfolio_transaction_service
 from app.services.portfolio import PortfolioService
+from app.services.transaction import TransactionService
+from app.services.transaction import TransactionService
 from app.schemas import (
     PortfolioResponse,
     PortfolioListResponse,
     PortfolioEdit,
     PortfolioDeleteResponse,
     AssetDetailResponse,
-    TickerData
+    TickerData,
+    TransactionResponse,
+    TransactionCreate
 )
 
 
@@ -22,11 +26,11 @@ async def get_user_portfolios(
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ) -> PortfolioListResponse:
     """Получение всех портфелей пользователя"""
-    # try:
-    portfolios = await portfolio_service.get_user_portfolios(current_user.id)
-    return PortfolioListResponse(portfolios=portfolios)
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e))
+    try:
+        portfolios = await portfolio_service.get_user_portfolios(current_user.id)
+        return PortfolioListResponse(portfolios=portfolios)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/", response_model=PortfolioResponse)
@@ -132,3 +136,19 @@ async def get_asset(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{portfolio_id}/assets/{asset_id}/transaction", response_model=TransactionResponse)
+async def create_transaction(
+    transaction_data: TransactionCreate,
+    current_user: User = Depends(get_current_user),
+    transaction_service: TransactionService = Depends(get_portfolio_transaction_service)
+):
+    """Создание новой транзакции"""
+    try:
+        transaction = await transaction_service.create(current_user.id, transaction_data)
+        return transaction
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

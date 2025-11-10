@@ -17,7 +17,7 @@ class WalletService:
             self.db, user_id, include_assets=True
         )
 
-    async def get_wallet(self, wallet_id: int, user_id: int) -> models.Wallet:
+    async def get_user_wallet(self, wallet_id: int, user_id: int) -> models.Wallet:
         """Получение кошелька с проверкой прав доступа"""
         wallet = await self.wallet_repo.get_by_id_with_assets(self.db, wallet_id)
 
@@ -44,7 +44,7 @@ class WalletService:
         await self.db.refresh(wallet)
 
         # Получаем кошелек с загруженными связями
-        wallet = await self.get_wallet(wallet.id, user_id)
+        wallet = await self.get_user_wallet(wallet.id, user_id)
 
         return wallet
 
@@ -55,7 +55,7 @@ class WalletService:
         wallet_data: WalletEdit
     ) -> models.Wallet:
         """Обновление кошелька"""
-        wallet = await self.get_wallet(wallet_id, user_id)
+        wallet = await self.get_user_wallet(wallet_id, user_id)
 
         # Обновление полей
         for field, value in wallet_data.model_dump(exclude_unset=True).items():
@@ -69,7 +69,7 @@ class WalletService:
 
     async def delete_wallet(self, wallet_id: int, user_id: int) -> None:
         """Удаление кошелька"""
-        await self.get_wallet(wallet_id, user_id)
+        await self.get_user_wallet(wallet_id, user_id)
         await self.wallet_repo.delete(self.db, wallet_id)
 
         await self.db.commit()
