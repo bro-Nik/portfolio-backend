@@ -60,7 +60,7 @@ class BaseRepository(Generic[ModelType]):
         query = self._apply_relationships(query, relationships)
 
         result = await db.execute(query)
-        return result.scalar_one_or_none()
+        return result.scalar()
 
     async def get_by_id(
         self,

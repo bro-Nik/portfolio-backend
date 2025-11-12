@@ -138,16 +138,55 @@ async def get_asset(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{portfolio_id}/assets/{asset_id}/transaction", response_model=TransactionResponse)
+@router.post("/{portfolio_id}/transaction", response_model=PortfolioResponse)
 async def create_transaction(
     transaction_data: TransactionCreate,
     current_user: User = Depends(get_current_user),
-    transaction_service: TransactionService = Depends(get_portfolio_transaction_service)
-):
+    transaction_service: TransactionService = Depends(get_portfolio_transaction_service),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service)
+) -> PortfolioResponse:
     """Создание новой транзакции"""
     try:
         transaction = await transaction_service.create(current_user.id, transaction_data)
-        return transaction
+        portfolio = await portfolio_service.get_user_portfolio(transaction.portfolio_id, current_user.id)
+        return portfolio
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/{portfolio_id}/transaction/{transaction_id}", response_model=PortfolioResponse)
+async def update_transaction(
+    transaction_id: int,
+    transaction_data: TransactionCreate,
+    current_user: User = Depends(get_current_user),
+    transaction_service: TransactionService = Depends(get_portfolio_transaction_service),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service)
+) -> PortfolioResponse:
+    """Создание новой транзакции"""
+    try:
+        transaction = await transaction_service.update(current_user.id, transaction_id, transaction_data)
+        portfolio = await portfolio_service.get_user_portfolio(transaction.portfolio_id, current_user.id)
+        return portfolio
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{portfolio_id}/transaction/{transaction_id}", response_model=PortfolioResponse)
+async def delete_transaction(
+    transaction_id: int,
+    current_user: User = Depends(get_current_user),
+    transaction_service: TransactionService = Depends(get_portfolio_transaction_service),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service)
+) -> PortfolioResponse:
+    """Создание новой транзакции"""
+    try:
+        rel = await transaction_service.delete(current_user.id, transaction_id)
+        portfolio = await portfolio_service.get_user_portfolio(rel['portfolio_id'], current_user.id)
+        return portfolio
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

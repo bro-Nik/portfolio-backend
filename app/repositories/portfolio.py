@@ -1,7 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models import Portfolio
 from app.repositories.base import BaseRepository
@@ -35,12 +33,3 @@ class PortfolioRepository(BaseRepository[Portfolio]):
     ) -> bool:
         """Проверить, есть ли у пользователя портфель с таким именем"""
         return await self.exists(db, {'user_id': user_id, 'name':name})
-
-    async def asset_exists(
-        self,
-        db: AsyncSession,
-        portfolio_id: int,
-        ticker_id: str,
-    ) -> bool:
-        """Получить актив портфеля по тикеру"""
-        return await self.get_one(db, {'portfolio_id': portfolio_id, 'ticker_id': ticker_id})

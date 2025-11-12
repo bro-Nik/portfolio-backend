@@ -1,23 +1,25 @@
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import models
+from app.services.wallet_asset import WalletAssetService
+from app.models import Transaction, Wallet
 from app.repositories.wallet import WalletRepository
-from app.schemas.wallet import WalletEdit
+from app.schemas import WalletEdit
 
 
 class WalletService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.wallet_repo = WalletRepository()
+        self.asset_service = WalletAssetService(db)
 
-    async def get_user_wallets(self, user_id: int) -> List[models.Wallet]:
+    async def get_user_wallets(self, user_id: int) -> List[Wallet]:
         """Получение всех кошельков пользователя"""
         return await self.wallet_repo.get_by_user_id(
             self.db, user_id, include_assets=True
         )
 
-    async def get_user_wallet(self, wallet_id: int, user_id: int) -> models.Wallet:
+    async def get_user_wallet(self, wallet_id: int, user_id: int) -> Wallet:
         """Получение кошелька с проверкой прав доступа"""
         wallet = await self.wallet_repo.get_by_id_with_assets(self.db, wallet_id)
 
@@ -26,13 +28,9 @@ class WalletService:
 
         return wallet
 
-    async def create_wallet(
-        self,
-        user_id: int,
-        wallet_data: WalletEdit
-    ) -> models.Wallet:
+    async def create_wallet(self, user_id: int, wallet_data: WalletEdit) -> Wallet:
         """Создание нового кошелька"""
-        wallet = models.Wallet(
+        wallet = Wallet(
             user_id=user_id,
             **wallet_data.model_dump()
         )
@@ -53,7 +51,7 @@ class WalletService:
         wallet_id: int,
         user_id: int,
         wallet_data: WalletEdit
-    ) -> models.Wallet:
+    ) -> Wallet:
         """Обновление кошелька"""
         wallet = await self.get_user_wallet(wallet_id, user_id)
 
@@ -73,3 +71,45 @@ class WalletService:
         await self.wallet_repo.delete(self.db, wallet_id)
 
         await self.db.commit()
+
+    async def handle_transaction(self, user_id: int, t: Transaction, cancel = False):
+        """Обработка транзакции"""
+
+        if t.type in ('Buy', 'Sell'):
+            await self._handle_trade(user_id, t)
+        elif t.type == 'Earning':
+            await self._handle_earning(user_id, t)
+        elif t.type in ('TransferIn', 'TransferOut'):
+            # Портфельный перевод
+            if not (t.wallet_id and t.wallet2_id):
+                return
+
+            await self._handle_transfer(user_id, t)
+        elif t.type in ('Input', 'Output'):
+            await self._handle_input_output(user_id, t)
+
+        # Уведомление сервиса актива о новой транзакции
+        await self.asset_service.handle_transaction(t, cancel)
+
+    async def _handle_trade(self, user_id: int, t: Transaction):
+        """Обработка торговой операции"""
+        # Валидация кошелька
+        await self.get_user_wallet(t.wallet_id, user_id)
+
+    async def _handle_earning(self, user_id: int, t: Transaction):
+        """Обработка заработка"""
+        # Валидация кошелька
+        await self.get_user_wallet(t.wallet_id, user_id)
+
+    async def _handle_transfer(self, user_id: int, t: Transaction):
+        """Обработка перевода между портфелями"""
+        # Валидация исходного кошелька
+        await self.get_user_wallet(t.wallet_id, user_id)
+
+        # Валидация целевого кошелька
+        await self.get_user_wallet(t.wallet2_id, user_id)
+
+    async def _handle_input_output(self, user_id: int, t: Transaction):
+        """Обработка ввода-вывода"""
+        # Валидация кошелька
+        await self.get_user_wallet(t.wallet_id, user_id)

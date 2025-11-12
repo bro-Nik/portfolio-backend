@@ -10,6 +10,14 @@ class AssetRepository(BaseRepository[Asset]):
     def __init__(self, ):
         super().__init__(Asset)
 
+    async def get(
+        self,
+        db: AsyncSession,
+        ticker_id: str,
+        portfolio_id: int
+    ) -> Asset:
+        return await self.get_one(db, {'portfolio_id': portfolio_id, 'ticker_id': ticker_id})
+
     async def get_by_ticker_and_user(
         self,
         db: AsyncSession,

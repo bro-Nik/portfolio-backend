@@ -1,4 +1,5 @@
 from typing import Optional
+from decimal import Decimal
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -7,9 +8,9 @@ class TransactionResponse(BaseModel):
     date: datetime
     ticker_id: str
     ticker2_id: Optional[str] = None
-    quantity: float
-    quantity2: Optional[float] = None
-    price: Optional[float] = None
+    quantity: Decimal
+    quantity2: Optional[Decimal] = None
+    price: Optional[Decimal] = None
     type: str
     comment: Optional[str] = None
     wallet_id: Optional[int] = None
@@ -24,18 +25,17 @@ class TransactionCreate(BaseModel):
     date: datetime
     ticker_id: str
     ticker2_id: Optional[str] = None
-    quantity: float
-    quantity2: Optional[float] = None
-    price: Optional[float] = None
-    price_usd: Optional[float] = None
-    ticker2_price: Optional[float] = None
+    quantity: Decimal
+    quantity2: Optional[Decimal] = None
+    price: Optional[Decimal] = None
+    price_usd: Optional[Decimal] = None
     type: str
     comment: Optional[str] = None
     wallet_id: Optional[int] = None
+    wallet2_id: Optional[int] = None
     portfolio_id: Optional[int] = None
     portfolio2_id: Optional[int] = None
     order: bool = False
-    # asset_id: int
 
 
 class TransactionUpdate(BaseModel):
