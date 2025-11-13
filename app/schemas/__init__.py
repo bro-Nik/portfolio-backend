@@ -9,6 +9,10 @@ from .portfolio import (
     PortfolioDeleteResponse
 )
 
+from .wallet_asset import (
+    WalletAssetResponse,
+)
+
 from .wallet import (
     WalletEdit,
     WalletListResponse,
@@ -35,6 +39,7 @@ __all__ = [
     "PortfolioResponse",
     "PortfolioListResponse", 
     "PortfolioDeleteResponse",
+    "WalletAssetResponse",
     "WalletEdit",
     "WalletListResponse",
     "WalletResponse",
