@@ -1,8 +1,7 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 
-from app import models, database
-from app.routers import portfolios, wallets
+from app.routers import portfolios, wallets, transactions
 
 
 app = FastAPI(
@@ -17,6 +16,7 @@ app = FastAPI(
 # Подключаем роутеры
 app.include_router(portfolios.router)
 app.include_router(wallets.router)
+app.include_router(transactions.router)
 
 
 if __name__ == "__main__":

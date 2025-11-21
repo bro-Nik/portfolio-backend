@@ -146,8 +146,9 @@ class WalletAssetService:
         asset1 = await self.get_or_create(t.ticker_id, t.wallet_id)
         asset2 = await self.get_or_create(t.ticker_id, t.wallet2_id)
 
-        asset1.quantity -= t.quantity * direction
-        asset2.quantity += t.quantity * direction
+        quantity = t.quantity * direction
+        asset1.quantity += quantity
+        asset2.quantity -= quantity
 
     async def _handle_input_output(self, t: Transaction, direction: int):
         """Обработка ввода-вывода"""
