@@ -1,7 +1,9 @@
-from typing import Optional
+from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
 from pydantic import BaseModel
+
+from app.schemas import AssetResponse, WalletAssetResponse
 
 
 class TransactionResponse(BaseModel):
@@ -11,10 +13,13 @@ class TransactionResponse(BaseModel):
     quantity: Decimal
     quantity2: Optional[Decimal] = None
     price: Optional[Decimal] = None
+    price_usd: Optional[Decimal] = None
     type: str
     comment: Optional[str] = None
     wallet_id: Optional[int] = None
+    wallet2_id: Optional[int] = None
     portfolio_id: Optional[int] = None
+    portfolio2_id: Optional[int] = None
     order: bool
 
     class Config:
@@ -41,3 +46,11 @@ class TransactionCreate(BaseModel):
 class TransactionUpdate(BaseModel):
     status: str
     amount: Optional[float] = None
+
+
+class TransactionResponseWithAssets(BaseModel):
+    success: bool = True
+    message: Optional[str] = None
+    transaction: Optional[TransactionResponse] = None
+    portfolio_assets: Optional[List[AssetResponse]] = None
+    wallet_assets: Optional[List[WalletAssetResponse]] = None

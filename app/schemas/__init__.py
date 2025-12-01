@@ -10,7 +10,7 @@ from .portfolio import (
 )
 
 from .wallet_asset import (
-    WalletAssetResponse,
+    WalletAssetDetailResponse,
 )
 
 from .wallet import (
@@ -18,12 +18,14 @@ from .wallet import (
     WalletListResponse,
     WalletResponse,
     WalletDeleteResponse,
+    WalletAssetResponse,
 )
 
 from .transaction import (
     TransactionResponse,
     TransactionCreate,
-    TransactionUpdate
+    TransactionUpdate,
+    TransactionResponseWithAssets,
 )
 
 from .ticker import TickerData
@@ -32,6 +34,7 @@ from .ticker import TickerData
 PortfolioResponse.model_rebuild()
 PortfolioListResponse.model_rebuild()
 
+
 __all__ = [
     "AssetResponse",
     "AssetDetailResponse", 
@@ -39,13 +42,15 @@ __all__ = [
     "PortfolioResponse",
     "PortfolioListResponse", 
     "PortfolioDeleteResponse",
-    "WalletAssetResponse",
+    "WalletAssetDetailResponse",
     "WalletEdit",
     "WalletListResponse",
     "WalletResponse",
     "WalletDeleteResponse",
+    "WalletAssetResponse",
     "TransactionResponse",
     "TransactionCreate",
     "TransactionUpdate",
-    "TickerData"
+    "TickerData",
+    "TransactionResponseWithAssets",
 ]

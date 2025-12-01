@@ -1,8 +1,9 @@
 from typing import List
+from app.repositories.wallet_asset import WalletAssetRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.wallet_asset import WalletAssetService
-from app.models import Transaction, Wallet
+from app.models import Transaction, Wallet, WalletAsset
 from app.repositories.wallet import WalletRepository
 from app.schemas import WalletEdit
 
@@ -12,9 +13,15 @@ class WalletService:
         self.db = db
         self.wallet_repo = WalletRepository()
         self.asset_service = WalletAssetService(db)
+        self.asset_repo = WalletAssetRepository()
 
-    async def get_user_wallets(self, user_id: int) -> List[Wallet]:
+    async def get_user_wallets(self, user_id: int, ids: list = []) -> List[Wallet]:
         """Получение всех кошельков пользователя"""
+        if ids:
+            return await self.wallet_repo.get_by_ids_and_user_id(
+                self.db, user_id, ids, include_assets=True
+            )
+
         return await self.wallet_repo.get_by_user_id(
             self.db, user_id, include_assets=True
         )
@@ -113,3 +120,20 @@ class WalletService:
         """Обработка ввода-вывода"""
         # Валидация кошелька
         await self.get_user_wallet(t.wallet_id, user_id)
+
+    async def get_assets_by_wallet_and_tickers(
+        self,
+        user_id: int,
+        wallet_id: int,
+        ticker_ids: List[str]
+    ) -> List[WalletAsset]:
+        """Получить активы кошелька по тикерам"""
+        # Проверяем права на кошелек
+        await self.get_user_wallet(wallet_id, user_id)
+
+        if not ticker_ids:
+            return []
+
+        return await self.asset_repo.get_by_wallet_and_tickers(
+            self.db, wallet_id, ticker_ids
+        )

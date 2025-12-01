@@ -63,3 +63,24 @@ class WalletAssetRepository(BaseRepository[WalletAsset]):
 
         result = await db.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_by_wallet_and_tickers(
+        self,
+        db: AsyncSession,
+        wallet_id: int,
+        ticker_ids: List[str]
+    ) -> List[WalletAsset]:
+        """Получить активы кошелька по списку тикеров"""
+        if not ticker_ids:
+            return []
+
+        query = (
+            select(WalletAsset)
+            .where(
+                WalletAsset.wallet_id == wallet_id,
+                WalletAsset.ticker_id.in_(ticker_ids)
+            )
+        )
+
+        result = await db.execute(query)
+        return result.scalars().all()

@@ -48,6 +48,24 @@ class BaseRepository(Generic[ModelType]):
         result = await db.execute(query)
         return result.scalars().all()
 
+    async def get_by_ids(
+        self,
+        db: AsyncSession,
+        ids: List[Any],
+        filters: Optional[Dict] = None,
+        relationships: Optional[List[str]] = None
+    ) -> List[ModelType]:
+        """Получить объекты по списку ID"""
+        if not ids:
+            return []
+
+        query = select(self.model).where(self.model.id.in_(ids))
+        query = self._apply_filters(query, filters)
+        query = self._apply_relationships(query, relationships)
+
+        result = await db.execute(query)
+        return result.scalars().all()
+
     async def get_one(
         self,
         db: AsyncSession,

@@ -13,7 +13,7 @@ class WalletResponse(BaseModel):
     id: int
     name: str
     comment: Optional[str] = None
-    assets: List['AssetResponse'] = []
+    assets: List['WalletAssetResponse'] = []
 
     class Config:
         from_attributes = True
@@ -29,12 +29,13 @@ class WalletDeleteResponse(BaseModel):
     wallet_id: int
 
 
-class AssetResponse(BaseModel):
+class WalletAssetResponse(BaseModel):
     """Модель ответа для актива"""
     id: int
     ticker_id: str
     quantity: float
     buy_orders: float
+    wallet_id: int
 
     class Config:
         from_attributes = True

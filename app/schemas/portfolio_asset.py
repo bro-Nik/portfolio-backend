@@ -9,6 +9,7 @@ class AssetResponse(BaseModel):
     quantity: float
     amount: float
     buy_orders: float
+    portfolio_id: int
 
     class Config:
         from_attributes = True

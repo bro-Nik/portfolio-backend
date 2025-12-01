@@ -21,6 +21,17 @@ class PortfolioRepository(BaseRepository[Portfolio]):
         relationships = ['assets'] if include_assets else None
         return await self.get_all(db, skip, limit, {'user_id': user_id}, relationships)
 
+    async def get_by_ids_and_user_id(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        ids: List[int],
+        include_assets: bool = False
+    ) -> List[Portfolio]:
+        """Получить портфели пользователя"""
+        relationships = ['assets'] if include_assets else None
+        return await self.get_by_ids(db, ids, {'user_id': user_id}, relationships)
+
     async def get_by_id_with_assets(self, db: AsyncSession, portfolio_id: int) -> Optional[Portfolio]:
         """Получить портфель с активами"""
         return await self.get_by_id(db, portfolio_id, ['assets'])

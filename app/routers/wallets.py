@@ -17,7 +17,7 @@ from app.schemas import (
     WalletResponse,
     WalletEdit,
     WalletDeleteResponse,
-    WalletAssetResponse
+    WalletAssetDetailResponse
 )
 
 
@@ -88,16 +88,16 @@ async def delete_wallet(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/assets/{asset_id}", response_model=WalletAssetResponse)
+@router.get("/assets/{asset_id}", response_model=WalletAssetDetailResponse)
 async def get_asset(
     asset_id: int,
     current_user: User = Depends(get_current_user),
     wallet_asset_service: WalletAssetService = Depends(get_wallet_asset_service)
-) -> WalletAssetResponse:
+) -> WalletAssetDetailResponse:
     """Получение детальной информации об активе"""
     try:
         asset_detail = await wallet_asset_service.get_asset_detail(asset_id, current_user.id)
-        return WalletAssetResponse(**asset_detail)
+        return WalletAssetDetailResponse(**asset_detail)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

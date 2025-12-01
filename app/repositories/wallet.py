@@ -21,6 +21,17 @@ class WalletRepository(BaseRepository[Wallet]):
         relationships = ['assets'] if include_assets else None
         return await self.get_all(db, skip, limit, {'user_id': user_id}, relationships)
 
+    async def get_by_ids_and_user_id(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        ids: List[int],
+        include_assets: bool = False
+    ) -> List[Wallet]:
+        """Получить кошельки пользователя"""
+        relationships = ['assets'] if include_assets else None
+        return await self.get_by_ids(db, ids, {'user_id': user_id}, relationships)
+
     async def get_by_id_with_assets(self, db: AsyncSession, wallet_id: int) -> Optional[Wallet]:
         """Получить кошелек с активами"""
         return await self.get_by_id(db, wallet_id, ['assets'])

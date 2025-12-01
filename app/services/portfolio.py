@@ -15,8 +15,13 @@ class PortfolioService:
         self.asset_repo = AssetRepository()
         self.asset_service = PortfolioAssetService(db)
 
-    async def get_user_portfolios(self, user_id: int) -> List[Portfolio]:
+    async def get_user_portfolios(self, user_id: int, ids: list = []) -> List[Portfolio]:
         """Получение всех портфелей пользователя"""
+        if ids:
+            return await self.portfolio_repo.get_by_ids_and_user_id(
+                self.db, user_id, ids, include_assets=True
+            )
+
         return await self.portfolio_repo.get_by_user_id(
             self.db, user_id, include_assets=True
         )
@@ -200,6 +205,8 @@ class PortfolioService:
 
     async def handle_transaction(self, user_id: int, t: Transaction, cancel = False):
         """Обработка транзакции"""
+        if not t.portfolio_id:
+            return
 
         if t.type in ('Buy', 'Sell'):
             await self._handle_trade(user_id, t)
@@ -235,3 +242,20 @@ class PortfolioService:
         """Обработка ввода-вывода"""
         # Валидация портфеля
         await self.get_user_portfolio(t.portfolio_id, user_id)
+
+    async def get_assets_by_portfolio_and_tickers(
+        self,
+        user_id: int,
+        portfolio_id: int,
+        ticker_ids: List[str]
+    ) -> List[Asset]:
+        """Получить активы портфеля по тикерам"""
+        # Проверяем права на портфель
+        await self.get_user_portfolio(portfolio_id, user_id)
+
+        if not ticker_ids:
+            return []
+
+        return await self.asset_repo.get_by_portfolio_and_tickers(
+            self.db, portfolio_id, ticker_ids
+        )
