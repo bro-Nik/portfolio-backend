@@ -1,86 +1,49 @@
-from typing import List, Optional
-from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.repositories.base import BaseRepository
 from app.models import Wallet, WalletAsset
+from app.repositories.base import BaseRepository
+from app.schemas.wallet_asset import WalletAssetEdit
 
 
-class WalletAssetRepository(BaseRepository[WalletAsset]):
-    def __init__(self, ):
-        super().__init__(WalletAsset)
+class WalletAssetRepository(BaseRepository[WalletAsset, WalletAssetEdit, WalletAssetEdit]):
+    """Репозиторий для работы с активами кошельков."""
 
-    async def get(
-        self,
-        db: AsyncSession,
-        ticker_id: str,
-        wallet_id: int
-    ) -> WalletAsset:
-        return await self.get_one(db, {'wallet_id': wallet_id, 'ticker_id': ticker_id})
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(WalletAsset, session)
 
-    async def get_by_ticker_and_user(
-        self,
-        db: AsyncSession,
-        ticker_id: str,
-        user_id: int
-    ) -> List[WalletAsset]:
-        """Получить все активы с указанным тикером для пользователя"""
-        query = (
-            select(WalletAsset)
-            .join(WalletAsset.wallet)
-            .where(
-                and_(
-                    WalletAsset.ticker_id == ticker_id,
-                    Wallet.user_id == user_id
-                )
-            )
-            .options(selectinload(WalletAsset.wallet))
+    async def get_by_ticker_and_wallet(self, ticker_id: str, wallet_id: int) -> WalletAsset | None:
+        """Получить актив кошелька по тикеру."""
+        return await self.get_by(
+            WalletAsset.wallet_id == wallet_id,
+            WalletAsset.ticker_id == ticker_id,
         )
 
-        result = await db.execute(query)
-        return result.scalars().all()
-
-    async def get_asset_with_details(
-        self,
-        db: AsyncSession,
-        asset_id: int,
-        user_id: int
-    ) -> Optional[WalletAsset]:
-        """Получить актив с детальной информацией (кошелек + транзакции)"""
-        query = (
-            select(WalletAsset)
-            .join(Wallet)
-            .where(
-                WalletAsset.id == asset_id,
-                Wallet.user_id == user_id
-            )
-            .options(
-                selectinload(WalletAsset.wallet),
-                selectinload(WalletAsset.transactions)
-            )
+    async def get_many_by_ticker_and_user(self, ticker_id: str, user_id: int) -> list[WalletAsset]:
+        """Получить активы пользователя по тикеру."""
+        return await self.get_many_by(
+            WalletAsset.ticker_id == ticker_id,
+            Wallet.user_id == user_id,
+            relations=('wallet',),
         )
 
-        result = await db.execute(query)
-        return result.scalar_one_or_none()
+    async def get_by_id_and_user_with_details(self, asset_id: int, user_id: int) -> WalletAsset | None:
+        """Получить актив пользователя с кошельком и транзакциями."""
+        return await self.get_by(
+            WalletAsset.id == asset_id,
+            Wallet.user_id == user_id,
+            relations=('wallet', 'transactions'),
+        )
 
-    async def get_by_wallet_and_tickers(
+    async def get_many_by_tickers_and_wallet(
         self,
-        db: AsyncSession,
+        ticker_ids: list[str],
         wallet_id: int,
-        ticker_ids: List[str]
-    ) -> List[WalletAsset]:
-        """Получить активы кошелька по списку тикеров"""
+    ) -> list[WalletAsset]:
+        """Получить активы кошелька по списку тикеров."""
         if not ticker_ids:
             return []
 
-        query = (
-            select(WalletAsset)
-            .where(
-                WalletAsset.wallet_id == wallet_id,
-                WalletAsset.ticker_id.in_(ticker_ids)
-            )
+        return await self.get_many_by(
+            WalletAsset.wallet_id == wallet_id,
+            WalletAsset.ticker_id.in_(ticker_ids),
         )
-
-        result = await db.execute(query)
-        return result.scalars().all()

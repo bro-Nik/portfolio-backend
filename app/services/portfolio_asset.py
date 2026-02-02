@@ -6,12 +6,12 @@ from app.schemas import TransactionCreate
 
 
 class PortfolioAssetService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.asset_repo = AssetRepository()
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.asset_repo = AssetRepository(session)
 
     async def get(self, ticker_id: str, portfolio_id: int) -> Asset:
-        return await self.asset_repo.get(self.db, ticker_id, portfolio_id)
+        return await self.asset_repo.get_by_ticker_and_portfolio(ticker_id, portfolio_id)
 
     async def get_or_create(self, ticker_id: str, portfolio_id: int) -> Asset:
         asset = await self.get(ticker_id, portfolio_id)
@@ -22,7 +22,7 @@ class PortfolioAssetService:
 
     async def _create(self, ticker_id: str, portfolio_id: int) -> Asset:
         new_asset = Asset(ticker_id=ticker_id, portfolio_id=portfolio_id)
-        asset = await self.asset_repo.create(self.db, new_asset)
+        asset = await self.asset_repo.create(new_asset)
         return asset
 
     async def handle_transaction(self, t: Transaction, cancel = False):

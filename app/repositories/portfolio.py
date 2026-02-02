@@ -1,46 +1,43 @@
-from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Portfolio
 from app.repositories.base import BaseRepository
+from app.schemas.portfolio import PortfolioEdit
 
 
-class PortfolioRepository(BaseRepository[Portfolio]):
-    def __init__(self):
-        super().__init__(Portfolio)
+class PortfolioRepository(BaseRepository[Portfolio, PortfolioEdit, PortfolioEdit]):
+    """Репозиторий для работы с портфелями."""
 
-    async def get_by_user_id(
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(Portfolio, session)
+
+    async def get_many_by_user(
         self,
-        db: AsyncSession,
         user_id: int,
         skip: int = 0,
         limit: int = 100,
-        include_assets: bool = False
-    ) -> List[Portfolio]:
-        """Получить портфели пользователя"""
-        relationships = ['assets'] if include_assets else None
-        return await self.get_all(db, skip, limit, {'user_id': user_id}, relationships)
+        *,
+        include_assets: bool = False,
+    ) -> list[Portfolio]:
+        """Получить портфели пользователя."""
+        return await self.get_many_by(
+            Portfolio.user_id == user_id,
+            skip=skip,
+            limit=limit,
+            relations=('assets',) if include_assets else (),
+        )
 
-    async def get_by_ids_and_user_id(
-        self,
-        db: AsyncSession,
-        user_id: int,
-        ids: List[int],
-        include_assets: bool = False
-    ) -> List[Portfolio]:
-        """Получить портфели пользователя"""
-        relationships = ['assets'] if include_assets else None
-        return await self.get_by_ids(db, ids, {'user_id': user_id}, relationships)
+    async def get_by_id_and_user_with_assets(self, portfolio_id: int, user_id: int) -> Portfolio | None:
+        """Получить портфель пользователя с активами."""
+        return await self.get_by(
+            Portfolio.id == portfolio_id,
+            Portfolio.user_id == user_id,
+            relations=('assets',),
+        )
 
-    async def get_by_id_with_assets(self, db: AsyncSession, portfolio_id: int) -> Optional[Portfolio]:
-        """Получить портфель с активами"""
-        return await self.get_by_id(db, portfolio_id, ['assets'])
-
-    async def user_has_portfolio_with_name(
-        self,
-        db: AsyncSession,
-        user_id: int,
-        name: str,
-    ) -> bool:
-        """Проверить, есть ли у пользователя портфель с таким именем"""
-        return await self.exists(db, {'user_id': user_id, 'name':name})
+    async def exists_by_name_and_user(self, name: str, user_id: int) -> bool:
+        """Проверить, есть ли у пользователя портфель с таким именем."""
+        return await self.exists_by(
+            Portfolio.user_id == user_id,
+            Portfolio.name == name,
+        )

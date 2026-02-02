@@ -14,6 +14,10 @@ class AssetResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class AssetEdit(BaseModel):
+    portfolio_id: int
+    ticker_id: str
+
 
 class AssetDetailResponse(BaseModel):
     transactions: List[dict]

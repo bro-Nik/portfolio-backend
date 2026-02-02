@@ -1,133 +1,294 @@
-from typing import Any, Dict, List, Optional, Type, TypeVar, Generic
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+# ruff: noqa: A002
+# pyright: reportAttributeAccessIssue=false
+
+# TODO: Логирование
+# TODO: Кэширование
+
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, TypeVar
+
 from pydantic import BaseModel
+from sqlalchemy import delete, exists, select, update
+from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import expression, func
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
-ModelType = TypeVar("ModelType")
+Id = TypeVar('Id', int, str)
 
 
-class BaseRepository(Generic[ModelType]):
-    def __init__(self, model: Type[ModelType]):
+class BaseRepository[Model, CreateSchema: BaseModel, UpdateSchema: BaseModel]:
+    """Базовый асинхронный CRUD репозиторий для SQLAlchemy.
+
+    Примечание:
+        - Требуется commit для сохранения изменений
+        - Возвращает None если объект не найден
+    """
+
+    def __init__(self, model: type[Model], session: 'AsyncSession') -> None:
         self.model = model
+        self.session = session
 
-    def _apply_relationships(self, query, relationships: Optional[List[str]] = None):
-        """Применяет загрузку связей"""
-        if relationships:
-            for relationship in relationships:
-                if hasattr(self.model, relationship):
-                    query = query.options(selectinload(getattr(self.model, relationship)))
-        return query
+    async def get(self, id: Id, relations: tuple[str, ...] = ()) -> Model | None:
+        """Получить объект по ID."""
+        stmt = select(self.model).where(self.model.id == id)
 
-    def _apply_filters(self, query, filters: Optional[Dict] = None):
-        """Применяет фильтры с поддержкой разных операторов"""
-        if filters:
-            for field, value in filters.items():
-                if hasattr(self.model, field):
-                    query = query.where(getattr(self.model, field) == value)
-        return query
+        for relation in relations:
+            stmt = stmt.options(selectinload(getattr(self.model, relation)))
 
-    async def get_all(
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by(
         self,
-        db: AsyncSession,
-        skip: int = 0,
-        limit: Optional[int] = None,
-        filters: Optional[Dict] = None,
-        relationships: Optional[List[str]] = None
-    ) -> List[ModelType]:
-        """Получить все объекты с пагинацией и фильтрацией"""
-        query = select(self.model)
-        query = self._apply_filters(query, filters)
-        query = self._apply_relationships(query, relationships)
+        *where: expression.ColumnElement[bool],
+        order_by: Sequence[expression.ColumnElement] | None = None,
+        relations: tuple[str, ...] = (),
+    ) -> Model | None:
+        """Получить объект по условию."""
+        stmt = select(self.model)
 
-        query = query.offset(skip)
-        if limit:
-            query = query.limit(limit)
+        if where:
+            stmt = stmt.where(*where)
 
-        result = await db.execute(query)
-        return result.scalars().all()
+        if order_by:
+            stmt = stmt.order_by(*order_by)
 
-    async def get_by_ids(
+        for relation in relations:
+            stmt = stmt.options(selectinload(getattr(self.model, relation)))
+
+        stmt = stmt.limit(1)
+        result = await self.session.execute(stmt)
+        return result.unique().scalar_one_or_none()
+
+    async def get_many(
         self,
-        db: AsyncSession,
-        ids: List[Any],
-        filters: Optional[Dict] = None,
-        relationships: Optional[List[str]] = None
-    ) -> List[ModelType]:
-        """Получить объекты по списку ID"""
+        ids: Sequence[Id],
+        relations: tuple[str, ...] = (),
+    ) -> list[Model]:
+        """Получить список объектов по списку ID."""
         if not ids:
             return []
 
-        query = select(self.model).where(self.model.id.in_(ids))
-        query = self._apply_filters(query, filters)
-        query = self._apply_relationships(query, relationships)
+        stmt = select(self.model).where(self.model.id.in_(ids))
 
-        result = await db.execute(query)
-        return result.scalars().all()
+        for relation in relations:
+            stmt = stmt.options(selectinload(getattr(self.model, relation)))
 
-    async def get_one(
+        result = await self.session.execute(stmt)
+        return result.unique().scalars().all()
+
+    async def get_many_by(
         self,
-        db: AsyncSession,
-        filters: Dict[str, Any],
-        relationships: Optional[List[str]] = None
-    ) -> Optional[ModelType]:
-        """Получить один объект по фильтрам"""
-        query = select(self.model)
-        query = self._apply_filters(query, filters)
-        query = self._apply_relationships(query, relationships)
+        *where: expression.ColumnElement[bool],
+        order_by: Sequence[expression.ColumnElement] | None = None,
+        skip: int = 0,
+        limit: int | None = None,
+        relations: tuple[str, ...] = (),
+    ) -> list[Model]:
+        """Получить список объектов по условию."""
+        stmt = select(self.model)
 
-        result = await db.execute(query)
-        return result.scalar()
+        if where:
+            stmt = stmt.where(*where)
 
-    async def get_by_id(
-        self,
-        db: AsyncSession,
-        id: str | int,
-        relationships: Optional[List[str]] = None
-    ) -> Optional[ModelType]:
-        """Получить объект по ID"""
-        return await self.get_one(db, {'id': id}, relationships)
+        if order_by:
+            stmt = stmt.order_by(*order_by)
 
-    async def create(self, db: AsyncSession, obj: ModelType) -> ModelType:
-        """Создать новый объект"""
-        db.add(obj)
-        await db.flush()
-        await db.refresh(obj)
+        for relation in relations:
+            stmt = stmt.options(selectinload(getattr(self.model, relation)))
+
+        stmt = stmt.offset(skip)
+        if limit:
+            stmt = stmt.limit(limit)
+
+        result = await self.session.execute(stmt)
+        return result.unique().scalars().all()
+
+    async def create(self, data: CreateSchema) -> Model:
+        """Создать объект."""
+        obj = self.model(**data.model_dump())
+        self.session.add(obj)
         return obj
+
+    async def create_many(self, objects: list[CreateSchema]) -> list[Model]:
+        """Создать несколько объектов."""
+        objs = [self.model(**obj.model_dump()) for obj in objects]
+        self.session.add_all(objs)
+        return objs
 
     async def update(
         self,
-        db: AsyncSession,
-        id: Any,
-        update_data: Any
-    ) -> Optional[ModelType]:
-        """Обновить объект"""
-        # Получаем объект
-        db_obj = await self.get_by_id(db, id)
-        if not db_obj:
-            return None
+        id: Id,
+        data: UpdateSchema,
+        *,
+        exclude_unset: bool = True,
+    ) -> Model | None:
+        """Обновить объект."""
+        update_data = data.model_dump(exclude_unset=exclude_unset)
 
-        # Обновляем поля
-        update_dict = update_data.model_dump(exclude_unset=True)
-        for field, value in update_dict.items():
-            setattr(db_obj, field, value)
+        stmt = (
+            update(self.model)
+            .where(self.model.id == id)
+            .values(**update_data)
+            .returning(self.model)
+        )
 
-        await db.flush()
-        await db.refresh(db_obj)
-        return db_obj
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
-    async def delete(self, db: AsyncSession, id: Any) -> bool:
-        """Удалить объект"""
-        db_obj = await self.get_by_id(db, id)
-        if not db_obj:
-            return False
+    async def update_many(
+        self,
+        ids: list[Id],
+        data: UpdateSchema,
+        *,
+        exclude_unset: bool = True,
+    ) -> list[Model]:
+        """Обновить несколько объектов."""
+        if not ids:
+            return []
 
-        await db.delete(db_obj)
-        await db.flush()
-        return True
+        update_data = data.model_dump(exclude_unset=exclude_unset)
 
-    async def exists(self, db: AsyncSession, filters: Dict[str, Any]) -> bool:
-        """Проверить существование объекта по фильтрам"""
-        result = await self.get_one(db, filters)
-        return result is not None
+        stmt = (
+            update(self.model)
+            .where(self.model.id.in_(ids))
+            .values(**update_data)
+            .returning(self.model)
+        )
+
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def delete(self, id: Id) -> bool:
+        """Удалить объект по ID."""
+        stmt = delete(self.model).where(self.model.id == id).returning(self.model.id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def delete_by(
+        self,
+        *where: expression.ColumnElement[bool],
+        order_by: Sequence[expression.ColumnElement] | None = None,
+    ) -> bool:
+        """Удалить объект по условию."""
+        stmt = delete(self.model)
+
+        if where:
+            stmt = stmt.where(*where)
+
+        if order_by:
+            stmt = stmt.order_by(*order_by)
+
+        stmt = stmt.limit(1).returning(self.model.id)
+
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def delete_many(self, ids: Sequence[Id]) -> list[Id]:
+        """Удалить несколько объектов по списку ID, вернуть список ID удалённых."""
+        if not ids:
+            return []
+
+        stmt = delete(self.model).where(self.model.id.in_(ids)).returning(self.model.id)
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all()]
+
+    async def delete_many_by(
+        self,
+        *where: expression.ColumnElement[bool],
+        order_by: Sequence[expression.ColumnElement] | None = None,
+    ) -> list[Id]:
+        """Удалить объекты по условию, вернуть список ID удалённых."""
+        stmt = delete(self.model)
+
+        if where:
+            stmt = stmt.where(*where)
+
+        if order_by:
+            stmt = stmt.order_by(*order_by)
+
+        stmt = stmt.returning(self.model.id)
+
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all()]
+
+    async def count(
+        self,
+        *where: expression.ColumnElement[bool],
+    ) -> int:
+        """Подсчитать количество объектов."""
+        stmt = select(func.count()).select_from(self.model)
+
+        if where:
+            stmt = stmt.where(*where)
+
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def paginate(
+        self,
+        *where: expression.ColumnElement[bool],
+        page: int = 1,
+        page_size: int = 20,
+        order_by: Sequence[expression.ColumnElement] | None = None,
+        relations: tuple[str, ...] = (),
+    ) -> tuple[list[Model], int]:
+        """Пагинация с подсчетом общего количества."""
+        # Подсчет общего количества
+        total = await self.count(*where)
+
+        # Получение данных
+        skip = (page - 1) * page_size
+        items = await self.get_many_by(
+            *where,
+            order_by=order_by,
+            relations=relations,
+            skip=skip,
+            limit=page_size,
+        )
+
+        return items, total
+
+    async def get_or_create(
+        self,
+        defaults: CreateSchema | None = None,
+        **kwargs: object,
+    ) -> Model:
+        """Получить объект или создать новый."""
+        # Строим условия поиска из kwargs
+        conditions = []
+        for key, value in kwargs.items():
+            if hasattr(self.model, key):
+                conditions.append(getattr(self.model, key) == value)
+
+        # Пытаемся найти существующий объект
+        obj = await self.get_by(*conditions)
+        if obj:
+            return obj
+
+        # Создаем новый объект
+        create_data = defaults.model_dump() if defaults else {}
+
+        # Добавляем kwargs в create_data
+        for key, value in kwargs.items():
+            if key not in create_data and hasattr(self.model, key):
+                create_data[key] = value
+
+        obj = self.model(**create_data)
+        self.session.add(obj)
+        return obj
+
+    async def exists(self, id: Id) -> bool:
+        """Проверить существование объекта по ID."""
+        stmt = select(exists().where(self.model.id == id))
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def exists_by(self, *where: expression.ColumnElement[bool]) -> bool:
+        """Проверить существование объекта по условию."""
+        stmt = select(exists().where(*where))
+        result = await self.session.execute(stmt)
+        return result.scalar_one()

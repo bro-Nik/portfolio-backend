@@ -9,28 +9,21 @@ from app.schemas import WalletEdit
 
 
 class WalletService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.wallet_repo = WalletRepository()
-        self.asset_service = WalletAssetService(db)
-        self.asset_repo = WalletAssetRepository()
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.wallet_repo = WalletRepository(session)
+        self.asset_service = WalletAssetService(session)
+        self.asset_repo = WalletAssetRepository(session)
 
-    async def get_user_wallets(self, user_id: int, ids: list = []) -> List[Wallet]:
+    async def get_user_wallets(self, user_id: int) -> List[Wallet]:
         """Получение всех кошельков пользователя"""
-        if ids:
-            return await self.wallet_repo.get_by_ids_and_user_id(
-                self.db, user_id, ids, include_assets=True
-            )
-
-        return await self.wallet_repo.get_by_user_id(
-            self.db, user_id, include_assets=True
-        )
+        return await self.wallet_repo.get_many_by_user(user_id, include_assets=True)
 
     async def get_user_wallet(self, wallet_id: int, user_id: int) -> Wallet:
         """Получение кошелька с проверкой прав доступа"""
-        wallet = await self.wallet_repo.get_by_id_with_assets(self.db, wallet_id)
+        wallet = await self.wallet_repo.get_by_id_and_user_with_assets(wallet_id, user_id)
 
-        if not wallet or wallet.user_id != user_id:
+        if not wallet:
             raise ValueError("Кошелек не найден")
 
         return wallet
@@ -43,10 +36,10 @@ class WalletService:
         )
 
         # Добавляем в сессию
-        wallet = await self.wallet_repo.create(self.db, wallet)
+        wallet = await self.wallet_repo.create(wallet)
 
-        await self.db.commit()
-        await self.db.refresh(wallet)
+        await self.session.commit()
+        await self.session.refresh(wallet)
 
         # Получаем кошелек с загруженными связями
         wallet = await self.get_user_wallet(wallet.id, user_id)
@@ -66,18 +59,29 @@ class WalletService:
         for field, value in wallet_data.model_dump(exclude_unset=True).items():
             setattr(wallet, field, value)
 
-        wallet = await self.wallet_repo.update(self.db, wallet_id, wallet_data)
+        wallet = await self.wallet_repo.update(wallet_id, wallet_data)
 
-        await self.db.commit()
-        await self.db.refresh(wallet)
+        await self.session.commit()
+        await self.session.refresh(wallet)
         return wallet
 
     async def delete_wallet(self, wallet_id: int, user_id: int) -> None:
         """Удаление кошелька"""
         await self.get_user_wallet(wallet_id, user_id)
-        await self.wallet_repo.delete(self.db, wallet_id)
 
-        await self.db.commit()
+        # ToDo Переделать (временно)
+        relations = ('assets', 'transactions')
+        wallet = await self.wallet_repo.get_by(Wallet.user_id == user_id, relations=relations)
+
+        if wallet:
+            for t in wallet.transactions:
+                await self.session.delete(t)
+            for a in wallet.assets:
+                await self.session.delete(a)
+
+        await self.wallet_repo.delete(wallet_id)
+
+        await self.session.commit()
 
     async def handle_transaction(self, user_id: int, t: Transaction, cancel = False):
         """Обработка транзакции"""
@@ -134,6 +138,6 @@ class WalletService:
         if not ticker_ids:
             return []
 
-        return await self.asset_repo.get_by_wallet_and_tickers(
-            self.db, wallet_id, ticker_ids
+        return await self.asset_repo.get_many_by_tickers_and_wallet(
+            ticker_ids, wallet_id
         )

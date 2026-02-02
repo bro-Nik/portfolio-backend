@@ -5,12 +5,12 @@ from app.repositories.wallet_asset import WalletAssetRepository
 
 
 class WalletAssetService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.repo = WalletAssetRepository()
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.repo = WalletAssetRepository(session)
 
     async def get_or_create(self, ticker_id: str, wallet_id: int) -> WalletAsset:
-        asset = await self.repo.get(self.db, ticker_id, wallet_id)
+        asset = await self.repo.get_by_ticker_and_wallet(ticker_id, wallet_id)
 
         if not asset:
             asset = await self._create(ticker_id, wallet_id)
@@ -18,13 +18,13 @@ class WalletAssetService:
 
     async def _create(self, ticker_id: str, wallet_id: int) -> WalletAsset:
         new_asset = WalletAsset(ticker_id=ticker_id, wallet_id=wallet_id)
-        asset = await self.repo.create(self.db, new_asset)
+        asset = await self.repo.create(new_asset)
         return asset
 
     async def get_asset_detail(self, asset_id: int, user_id: int) -> dict:
         """Получение детальной информации об активе"""
         # Загружаем актив с тикером и кошельком
-        asset = await self.repo.get_asset_with_details(self.db, asset_id, user_id)
+        asset = await self.repo.get_by_id_and_user_with_details(asset_id, user_id)
 
         if not asset:
             raise ValueError("Актив не найден")
@@ -62,7 +62,7 @@ class WalletAssetService:
 
     async def _calculate_wallet_distribution(self, ticker_id: str, user_id: int) -> dict:
         """Расчет распределения актива по портфелям"""
-        assets = await self.repo.get_by_ticker_and_user(self.db, ticker_id, user_id)
+        assets = await self.repo.get_many_by_ticker_and_user(ticker_id, user_id)
 
         total_quantity = sum(asset.quantity for asset in assets)
 

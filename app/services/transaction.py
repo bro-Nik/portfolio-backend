@@ -10,11 +10,11 @@ from app.repositories.transaction import TransactionRepository
 
 
 class TransactionService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.transaction_repo = TransactionRepository()
-        self.portfolio_service = PortfolioService(db)
-        self.wallet_service = WalletService(db)
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.transaction_repo = TransactionRepository(session)
+        self.portfolio_service = PortfolioService(session)
+        self.wallet_service = WalletService(session)
         self.analyzer = TransactionAnalyzer()
 
     async def create(
@@ -26,19 +26,19 @@ class TransactionService:
         try:
             # Сохранение транзакции
             transaction = Transaction(**transaction_data.model_dump(exclude_unset=True))
-            saved_transaction = await self.transaction_repo.create(self.db, transaction)
+            saved_transaction = await self.transaction_repo.create(transaction)
 
             # Уведомление сервисов о новой транзакции
             await self.portfolio_service.handle_transaction(user_id, transaction)
             await self.wallet_service.handle_transaction(user_id, transaction)
 
-            await self.db.commit()
-            await self.db.refresh(saved_transaction)
+            await self.session.commit()
+            await self.session.refresh(saved_transaction)
 
             return saved_transaction
 
         except Exception as e:
-            await self.db.rollback()
+            await self.session.rollback()
             raise e
 
     async def update(
@@ -50,7 +50,7 @@ class TransactionService:
         """Обновление транзакции"""
         try:
             # Поиск транзакции
-            transaction = await self.transaction_repo.get_by_id(self.db, transaction_id)
+            transaction = await self.transaction_repo.get(transaction_id)
             if not transaction:
                 raise ValueError(f"Transaction {transaction_id} not found")
 
@@ -64,26 +64,26 @@ class TransactionService:
 
             # Обновление в репозитории
             updated_transaction = await self.transaction_repo.update(
-                self.db, transaction.id, update_data
+                transaction.id, update_data
             )
 
             # Уведомление сервисов о транзакции
             await self.portfolio_service.handle_transaction(user_id, updated_transaction)
             await self.wallet_service.handle_transaction(user_id, updated_transaction)
 
-            await self.db.commit()
-            await self.db.refresh(updated_transaction)
+            await self.session.commit()
+            await self.session.refresh(updated_transaction)
 
             return updated_transaction, transaction
 
         except Exception as e:
-            await self.db.rollback()
+            await self.session.rollback()
             raise e
 
     async def delete(self, user_id:int, transaction_id: int) -> Transaction:
         """Удаление транзакции"""
         try:
-            transaction = await self.transaction_repo.get_by_id(self.db, transaction_id)
+            transaction = await self.transaction_repo.get(transaction_id)
             if not transaction:
                 raise ValueError(f"Transaction {transaction_id} not found")
 
@@ -92,14 +92,14 @@ class TransactionService:
             await self.wallet_service.handle_transaction(user_id, transaction, cancel=True)
 
             # Удаление
-            await self.transaction_repo.delete(self.db, transaction_id)
+            await self.transaction_repo.delete(transaction_id)
 
-            await self.db.commit()
+            await self.session.commit()
 
             return transaction
 
         except Exception as e:
-            await self.db.rollback()
+            await self.session.rollback()
             raise e
 
     async def get_affected_portfolio_assets(

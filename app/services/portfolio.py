@@ -9,28 +9,21 @@ from app.schemas import PortfolioEdit
 
 
 class PortfolioService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.portfolio_repo = PortfolioRepository()
-        self.asset_repo = AssetRepository()
-        self.asset_service = PortfolioAssetService(db)
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.portfolio_repo = PortfolioRepository(session)
+        self.asset_repo = AssetRepository(session)
+        self.asset_service = PortfolioAssetService(session)
 
-    async def get_user_portfolios(self, user_id: int, ids: list = []) -> List[Portfolio]:
+    async def get_user_portfolios(self, user_id: int) -> List[Portfolio]:
         """Получение всех портфелей пользователя"""
-        if ids:
-            return await self.portfolio_repo.get_by_ids_and_user_id(
-                self.db, user_id, ids, include_assets=True
-            )
-
-        return await self.portfolio_repo.get_by_user_id(
-            self.db, user_id, include_assets=True
-        )
+        return await self.portfolio_repo.get_many_by_user(user_id, include_assets=True)
 
     async def get_user_portfolio(self, portfolio_id: int, user_id: int) -> Portfolio:
         """Получение портфеля с проверкой прав доступа"""
-        portfolio = await self.portfolio_repo.get_by_id_with_assets(self.db, portfolio_id)
+        portfolio = await self.portfolio_repo.get_by_id_and_user_with_assets(portfolio_id, user_id)
 
-        if not portfolio or portfolio.user_id != user_id:
+        if not portfolio:
             raise ValueError("Портфель не найден")
 
         return portfolio
@@ -42,7 +35,7 @@ class PortfolioService:
     ) -> Portfolio:
         """Создание нового портфеля"""
         # Проверка уникальности имени
-        if await self.portfolio_repo.user_has_portfolio_with_name(self.db, user_id, portfolio_data.name):
+        if await self.portfolio_repo.exists_by_name_and_user(portfolio_data.name, user_id):
             raise ValueError("Портфель с таким именем уже существует")
 
         portfolio = Portfolio(
@@ -51,10 +44,10 @@ class PortfolioService:
         )
 
         # Добавляем в сессию
-        portfolio = await self.portfolio_repo.create(self.db, portfolio)
+        portfolio = await self.portfolio_repo.create(portfolio)
 
-        await self.db.commit()
-        await self.db.refresh(portfolio)
+        await self.session.commit()
+        await self.session.refresh(portfolio)
 
         # Получаем портфель с загруженными связями
         portfolio = await self.get_user_portfolio(portfolio.id, user_id)
@@ -72,8 +65,8 @@ class PortfolioService:
 
         # Проверка уникальности имени (если имя изменилось)
         if portfolio_data.name != portfolio.name:
-            if await self.portfolio_repo.user_has_portfolio_with_name(
-                self.db, user_id, portfolio_data.name
+            if await self.portfolio_repo.exists_by_name_and_user(
+                portfolio_data.name, user_id
             ):
                 raise ValueError("Портфель с таким именем уже существует")
 
@@ -81,10 +74,10 @@ class PortfolioService:
         for field, value in portfolio_data.model_dump(exclude_unset=True).items():
             setattr(portfolio, field, value)
 
-        portfolio = await self.portfolio_repo.update(self.db, portfolio_id, portfolio_data)
+        portfolio = await self.portfolio_repo.update(portfolio_id, portfolio_data)
 
-        await self.db.commit()
-        await self.db.refresh(portfolio)
+        await self.session.commit()
+        await self.session.refresh(portfolio)
         return portfolio
 
     async def delete_portfolio(self, portfolio_id: int, user_id: int) -> None:
@@ -92,17 +85,17 @@ class PortfolioService:
         await self.get_user_portfolio(portfolio_id, user_id)
 
         # ToDo Переделать (временно)
-        relationships = ['assets', 'transactions']
-        portfolio = await self.portfolio_repo.get_one(self.db,  {'user_id': user_id}, relationships)
+        relations = ('assets', 'transactions')
+        portfolio = await self.portfolio_repo.get_by(Portfolio.user_id == user_id, relations=relations)
 
         for t in portfolio.transactions:
-            await self.db.delete(t)
+            await self.session.delete(t)
         for a in portfolio.assets:
-            await self.db.delete(a)
+            await self.session.delete(a)
 
-        await self.portfolio_repo.delete(self.db, portfolio_id)
+        await self.portfolio_repo.delete(portfolio_id)
 
-        await self.db.commit()
+        await self.session.commit()
 
     async def add_asset(self, portfolio_id: int, user_id: int, ticker_id: str) -> Portfolio:
         """Добавление актива в портфель"""
@@ -118,9 +111,9 @@ class PortfolioService:
             ticker_id=ticker_id
         )
 
-        await self.asset_repo.create(self.db, asset)
-        await self.db.commit()
-        await self.db.refresh(portfolio)
+        await self.asset_repo.create(asset)
+        await self.session.commit()
+        await self.session.refresh(portfolio)
 
         return portfolio
 
@@ -129,13 +122,13 @@ class PortfolioService:
         portfolio = await self.get_user_portfolio(portfolio_id, user_id)
 
         # Проверка, что актив существует в портфеле
-        asset = await self.asset_repo.get_by_id(self.db, asset_id)
+        asset = await self.asset_repo.get(asset_id)
         if not asset or asset.portfolio_id != portfolio_id:
             raise ValueError("Актив не найден в портфеле")
 
-        await self.asset_repo.delete(self.db, asset_id)
-        await self.db.commit()
-        await self.db.refresh(portfolio)
+        await self.asset_repo.delete(asset_id)
+        await self.session.commit()
+        await self.session.refresh(portfolio)
 
         return portfolio
 
@@ -143,7 +136,7 @@ class PortfolioService:
     async def get_asset_detail(self, asset_id: int, user_id: int) -> dict:
         """Получение детальной информации об активе"""
         # Загружаем актив с тикером и портфелем
-        asset = await self.asset_repo.get_asset_with_details(self.db, asset_id, user_id)
+        asset = await self.asset_repo.get_by_id_and_user_with_details(asset_id, user_id)
 
         if not asset:
             raise ValueError("Актив не найден")
@@ -181,7 +174,7 @@ class PortfolioService:
 
     async def _calculate_portfolio_distribution(self, ticker_id: str, user_id: int) -> dict:
         """Расчет распределения актива по портфелям"""
-        assets = await self.asset_repo.get_by_ticker_and_user(self.db, ticker_id, user_id)
+        assets = await self.asset_repo.get_many_by_ticker_and_user(ticker_id, user_id)
 
         total_quantity = sum(asset.quantity for asset in assets)
         total_amount = sum(asset.amount for asset in assets)
@@ -256,6 +249,6 @@ class PortfolioService:
         if not ticker_ids:
             return []
 
-        return await self.asset_repo.get_by_portfolio_and_tickers(
-            self.db, portfolio_id, ticker_ids
+        return await self.asset_repo.get_many_by_tickers_and_portfolio(
+            ticker_ids, portfolio_id
         )

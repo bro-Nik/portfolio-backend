@@ -1,85 +1,49 @@
-from typing import List, Optional
-from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models import Asset, Portfolio
 from app.repositories.base import BaseRepository
+from app.schemas.portfolio_asset import AssetEdit
 
-class AssetRepository(BaseRepository[Asset]):
-    def __init__(self, ):
-        super().__init__(Asset)
 
-    async def get(
-        self,
-        db: AsyncSession,
-        ticker_id: str,
-        portfolio_id: int
-    ) -> Asset:
-        return await self.get_one(db, {'portfolio_id': portfolio_id, 'ticker_id': ticker_id})
+class AssetRepository(BaseRepository[Asset, AssetEdit, AssetEdit]):
+    """Репозиторий для работы с активами портфелей."""
 
-    async def get_by_ticker_and_user(
-        self,
-        db: AsyncSession,
-        ticker_id: str,
-        user_id: int
-    ) -> List[Asset]:
-        """Получить все активы с указанным тикером для пользователя"""
-        query = (
-            select(Asset)
-            .join(Asset.portfolio)
-            .where(
-                and_(
-                    Asset.ticker_id == ticker_id,
-                    Portfolio.user_id == user_id
-                )
-            )
-            .options(selectinload(Asset.portfolio))
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(Asset, session)
+
+    async def get_by_ticker_and_portfolio(self, ticker_id: str, portfolio_id: int) -> Asset | None:
+        """Получить актив портфеля по тикеру."""
+        return await self.get_by(
+            Asset.portfolio_id == portfolio_id,
+            Asset.ticker_id == ticker_id,
         )
 
-        result = await db.execute(query)
-        return result.scalars().all()
-
-    async def get_asset_with_details(
-        self,
-        db: AsyncSession,
-        asset_id: int,
-        user_id: int
-    ) -> Optional[Asset]:
-        """Получить актив с детальной информацией (портфель + транзакции)"""
-        query = (
-            select(Asset)
-            .join(Portfolio)
-            .where(
-                Asset.id == asset_id,
-                Portfolio.user_id == user_id
-            )
-            .options(
-                selectinload(Asset.portfolio),
-                selectinload(Asset.transactions)
-            )
+    async def get_many_by_ticker_and_user(self, ticker_id: str, user_id: int) -> list[Asset]:
+        """Получить активы пользователя по тикеру."""
+        return await self.get_many_by(
+            Asset.ticker_id == ticker_id,
+            Portfolio.user_id == user_id,
+            relations=('portfolio',),
         )
 
-        result = await db.execute(query)
-        return result.scalar_one_or_none()
+    async def get_by_id_and_user_with_details(self, asset_id: int, user_id: int) -> Asset | None:
+        """Получить актив пользователя с портфелем и транзакциями."""
+        return await self.get_by(
+            Asset.id == asset_id,
+            Portfolio.user_id == user_id,
+            relations=('portfolio', 'transactions'),
+        )
 
-    async def get_by_portfolio_and_tickers(
+    async def get_many_by_tickers_and_portfolio(
         self,
-        db: AsyncSession,
+        ticker_ids: list[str],
         portfolio_id: int,
-        ticker_ids: List[str]
-    ) -> List[Asset]:
-        """Получить активы портфеля по списку тикеров"""
+    ) -> list[Asset]:
+        """Получить активы портфеля по списку тикеров."""
         if not ticker_ids:
             return []
 
-        query = (
-            select(Asset)
-            .where(
-                Asset.portfolio_id == portfolio_id,
-                Asset.ticker_id.in_(ticker_ids)
-            )
+        return await self.get_many_by(
+            Asset.portfolio_id == portfolio_id,
+            Asset.ticker_id.in_(ticker_ids),
         )
-
-        result = await db.execute(query)
-        return result.scalars().all()

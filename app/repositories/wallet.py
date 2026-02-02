@@ -1,37 +1,36 @@
-from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Wallet
 from app.repositories.base import BaseRepository
+from app.schemas.wallet import WalletEdit
 
 
-class WalletRepository(BaseRepository[Wallet]):
-    def __init__(self):
-        super().__init__(Wallet)
+class WalletRepository(BaseRepository[Wallet, WalletEdit, WalletEdit]):
+    """Репозиторий для работы с кошельками."""
 
-    async def get_by_user_id(
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(Wallet, session)
+
+    async def get_many_by_user(
         self,
-        db: AsyncSession,
         user_id: int,
         skip: int = 0,
         limit: int = 100,
-        include_assets: bool = False
-    ) -> List[Wallet]:
-        """Получить кошельки пользователя"""
-        relationships = ['assets'] if include_assets else None
-        return await self.get_all(db, skip, limit, {'user_id': user_id}, relationships)
+        *,
+        include_assets: bool = False,
+    ) -> list[Wallet]:
+        """Получить кошельки пользователя."""
+        return await self.get_many_by(
+            Wallet.user_id == user_id,
+            skip=skip,
+            limit=limit,
+            relations=('assets',) if include_assets else (),
+        )
 
-    async def get_by_ids_and_user_id(
-        self,
-        db: AsyncSession,
-        user_id: int,
-        ids: List[int],
-        include_assets: bool = False
-    ) -> List[Wallet]:
-        """Получить кошельки пользователя"""
-        relationships = ['assets'] if include_assets else None
-        return await self.get_by_ids(db, ids, {'user_id': user_id}, relationships)
-
-    async def get_by_id_with_assets(self, db: AsyncSession, wallet_id: int) -> Optional[Wallet]:
-        """Получить кошелек с активами"""
-        return await self.get_by_id(db, wallet_id, ['assets'])
+    async def get_by_id_and_user_with_assets(self, wallet_id: int, user_id: int) -> Wallet | None:
+        """Получить кошелек пользователя с активами."""
+        return await self.get_by(
+            Wallet.id == wallet_id,
+            Wallet.user_id == user_id,
+            relations=('assets',),
+        )
