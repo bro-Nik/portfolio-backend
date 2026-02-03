@@ -2,10 +2,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Portfolio
 from app.repositories.base import BaseRepository
-from app.schemas.portfolio import PortfolioEdit
+from app.schemas import PortfolioCreate, PortfolioUpdate
 
 
-class PortfolioRepository(BaseRepository[Portfolio, PortfolioEdit, PortfolioEdit]):
+class PortfolioRepository(BaseRepository[Portfolio, PortfolioCreate, PortfolioUpdate]):
     """Репозиторий для работы с портфелями."""
 
     def __init__(self, session: AsyncSession) -> None:

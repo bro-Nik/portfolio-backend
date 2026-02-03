@@ -1,8 +1,8 @@
-from app.schemas.transaction import TransactionCreate, TransactionUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Transaction
 from app.repositories.base import BaseRepository
+from app.schemas.transaction import TransactionCreate, TransactionUpdate
 
 
 class TransactionRepository(BaseRepository[Transaction, TransactionCreate, TransactionUpdate]):

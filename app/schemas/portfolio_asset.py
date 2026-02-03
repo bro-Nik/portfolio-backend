@@ -1,24 +1,43 @@
-from typing import List
-from pydantic import BaseModel
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict
 
 
-class AssetResponse(BaseModel):
-    """Модель ответа для актива"""
+class PortfolioAssetBase(BaseModel):
+    """Базовые поля."""
+
+    portfolio_id: int
+    ticker_id: str
+
+
+class PortfolioAssetCreateRequest(BaseModel):
+    """Создание нового актива."""
+
+    ticker_id: str
+    portfolio_id: int | None = None
+
+
+class PortfolioAssetCreate(PortfolioAssetBase):
+    """Создание актива в БД."""
+
+
+class PortfolioAssetUpdate(PortfolioAssetBase):
+    """Обновление актива в БД."""
+
+
+class PortfolioAssetResponse(PortfolioAssetBase):
+    """Ответ с данными актива."""
+
     id: int
-    ticker_id: str
-    quantity: float
-    amount: float
-    buy_orders: float
-    portfolio_id: int
+    quantity: Decimal
+    amount: Decimal
+    buy_orders: Decimal
 
-    class Config:
-        from_attributes = True
-
-class AssetEdit(BaseModel):
-    portfolio_id: int
-    ticker_id: str
+    model_config = ConfigDict(from_attributes=True)
 
 
-class AssetDetailResponse(BaseModel):
-    transactions: List[dict]
+class PortfolioAssetDetailResponse(BaseModel):
+    """Ответ с детальными данными актива."""
+
+    transactions: list[dict]
     distribution: dict

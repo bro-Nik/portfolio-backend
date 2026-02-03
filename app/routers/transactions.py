@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from app.dependencies.auth import get_current_user, User
 from app.dependencies.transaction import get_transaction_service
 from app.services.transaction import TransactionService
-from app.schemas import TransactionCreate, TransactionResponseWithAssets, AssetResponse, WalletAssetResponse
+from app.schemas import TransactionCreateRequest, TransactionResponseWithAssets, PortfolioAssetResponse, WalletAssetResponse
 
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
 @router.post("/", response_model=TransactionResponseWithAssets)
 async def create_transaction(
-    transaction_data: TransactionCreate,
+    transaction_data: TransactionCreateRequest,
     user: User = Depends(get_current_user),
     transaction_service: TransactionService = Depends(get_transaction_service),
 ) -> TransactionResponseWithAssets:
@@ -30,7 +30,7 @@ async def create_transaction(
         )
         return TransactionResponseWithAssets(
             message="Транзакция успешно создана",
-            portfolio_assets=[AssetResponse.model_validate(a) for a in portfolio_assets],
+            portfolio_assets=[PortfolioAssetResponse.model_validate(a) for a in portfolio_assets],
             wallet_assets=[WalletAssetResponse.model_validate(a) for a in wallet_assets],
         )
     except ValueError as e:
@@ -42,7 +42,7 @@ async def create_transaction(
 @router.put("/{transaction_id}", response_model=TransactionResponseWithAssets)
 async def update_transaction(
     transaction_id: int,
-    transaction_data: TransactionCreate,
+    transaction_data: TransactionCreateRequest,
     user: User = Depends(get_current_user),
     transaction_service: TransactionService = Depends(get_transaction_service),
 ) -> TransactionResponseWithAssets:
@@ -62,7 +62,7 @@ async def update_transaction(
         )
         return TransactionResponseWithAssets(
             message="Транзакция успешно изменена",
-            portfolio_assets=[AssetResponse.model_validate(a) for a in portfolio_assets],
+            portfolio_assets=[PortfolioAssetResponse.model_validate(a) for a in portfolio_assets],
             wallet_assets=[WalletAssetResponse.model_validate(a) for a in wallet_assets],
         )
     except ValueError as e:
@@ -89,7 +89,7 @@ async def delete_transaction(
         )
         return TransactionResponseWithAssets(
             message="Транзакция успешно удалена",
-            portfolio_assets=[AssetResponse.model_validate(a) for a in portfolio_assets],
+            portfolio_assets=[PortfolioAssetResponse.model_validate(a) for a in portfolio_assets],
             wallet_assets=[WalletAssetResponse.model_validate(a) for a in wallet_assets],
         )
     except ValueError as e:

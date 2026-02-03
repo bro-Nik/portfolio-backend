@@ -1,4 +1,6 @@
 from typing import List
+from app.schemas.portfolio import PortfolioCreateRequest, PortfolioUpdateRequest
+from app.schemas.portfolio_asset import PortfolioAssetCreateRequest
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.dependencies.auth import get_current_user, User
@@ -7,10 +9,8 @@ from app.services.portfolio import PortfolioService
 from app.schemas import (
     PortfolioResponse,
     PortfolioListResponse,
-    PortfolioEdit,
     PortfolioDeleteResponse,
-    AssetDetailResponse,
-    TickerData,
+    PortfolioAssetDetailResponse,
 )
 
 
@@ -46,7 +46,7 @@ async def get_user_portfolios_by_ids(
 
 @router.post("/", response_model=PortfolioResponse)
 async def create_portfolio(
-    portfolio_data: PortfolioEdit,
+    portfolio_data: PortfolioCreateRequest,
     current_user: User = Depends(get_current_user),
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ) -> PortfolioResponse:
@@ -63,7 +63,7 @@ async def create_portfolio(
 @router.put("/{portfolio_id}", response_model=PortfolioResponse)
 async def update_portfolio(
     portfolio_id: int,
-    portfolio_data: PortfolioEdit,
+    portfolio_data: PortfolioUpdateRequest,
     current_user: User = Depends(get_current_user),
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ) -> PortfolioResponse:
@@ -98,7 +98,7 @@ async def delete_portfolio(
 @router.post("/{portfolio_id}/assets", response_model=PortfolioResponse)
 async def add_asset_to_portfolio(
     portfolio_id: int,
-    data: TickerData,
+    data: PortfolioAssetCreateRequest,
     current_user: User = Depends(get_current_user),
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ) -> PortfolioResponse:
@@ -133,16 +133,16 @@ async def delete_asset_from_portfolio(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/assets/{asset_id}", response_model=AssetDetailResponse)
+@router.get("/assets/{asset_id}", response_model=PortfolioAssetDetailResponse)
 async def get_asset(
     asset_id: int,
     current_user: User = Depends(get_current_user),
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
-) -> AssetDetailResponse:
+) -> PortfolioAssetDetailResponse:
     """Получение детальной информации об активе"""
     try:
         asset_detail = await portfolio_service.get_asset_detail(asset_id, current_user.id)
-        return AssetDetailResponse(**asset_detail)
+        return PortfolioAssetDetailResponse(**asset_detail)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

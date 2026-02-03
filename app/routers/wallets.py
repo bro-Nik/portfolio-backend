@@ -1,13 +1,6 @@
-from typing import List, Union
-from app.dependencies.transaction import get_transaction_service
-from app.schemas.transaction import TransactionCreate
 from app.services.transaction import TransactionService
 from app.services.wallet_asset import WalletAssetService
-from pydantic import BaseModel
-from app import database
-from app.schemas.wallet import ErrorResponse, WalletToBuyResponse, WalletToSellResponse
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies.auth import get_current_user, User
 from app.dependencies.wallet import get_wallet_service, get_wallet_asset_service
@@ -15,9 +8,13 @@ from app.services.wallet import WalletService
 from app.schemas import (
     WalletListResponse,
     WalletResponse,
-    WalletEdit,
     WalletDeleteResponse,
-    WalletAssetDetailResponse
+    WalletAssetDetailResponse,
+    ErrorResponse,
+    WalletCreateRequest,
+    WalletToBuyResponse,
+    WalletToSellResponse,
+    WalletUpdateRequest,
 )
 
 
@@ -39,7 +36,7 @@ async def get_user_wallets(
 
 @router.post("/", response_model=WalletResponse)
 async def create_wallet(
-    wallet_data: WalletEdit,
+    wallet_data: WalletCreateRequest,
     current_user: User = Depends(get_current_user),
     wallet_service: WalletService = Depends(get_wallet_service)
 ) -> WalletResponse:
@@ -56,7 +53,7 @@ async def create_wallet(
 @router.put("/{wallet_id}", response_model=WalletResponse)
 async def update_wallet(
     wallet_id: int,
-    wallet_data: WalletEdit,
+    wallet_data: WalletUpdateRequest,
     current_user: User = Depends(get_current_user),
     wallet_service: WalletService = Depends(get_wallet_service)
 ) -> WalletResponse:

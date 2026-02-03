@@ -2,10 +2,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Wallet, WalletAsset
 from app.repositories.base import BaseRepository
-from app.schemas.wallet_asset import WalletAssetEdit
+from app.schemas import WalletAssetCreate, WalletAssetUpdate
 
 
-class WalletAssetRepository(BaseRepository[WalletAsset, WalletAssetEdit, WalletAssetEdit]):
+class WalletAssetRepository(BaseRepository[WalletAsset, WalletAssetCreate, WalletAssetUpdate]):
     """Репозиторий для работы с активами кошельков."""
 
     def __init__(self, session: AsyncSession) -> None:

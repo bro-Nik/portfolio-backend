@@ -1,56 +1,58 @@
-from typing import Optional, List
-from decimal import Decimal
 from datetime import datetime
-from pydantic import BaseModel
+from decimal import Decimal
 
-from app.schemas import AssetResponse, WalletAssetResponse
+from pydantic import BaseModel, ConfigDict
 
 
-class TransactionResponse(BaseModel):
+class TransactionBase(BaseModel):
+    """Базовые поля."""
+
     date: datetime
     ticker_id: str
-    ticker2_id: Optional[str] = None
+    ticker2_id: str | None = None
     quantity: Decimal
-    quantity2: Optional[Decimal] = None
-    price: Optional[Decimal] = None
-    price_usd: Optional[Decimal] = None
+    quantity2: Decimal | None = None
+    price: Decimal | None = None
+    price_usd: Decimal | None = None
     type: str
-    comment: Optional[str] = None
-    wallet_id: Optional[int] = None
-    wallet2_id: Optional[int] = None
-    portfolio_id: Optional[int] = None
-    portfolio2_id: Optional[int] = None
+    comment: str | None = None
+    wallet_id: int | None = None
+    wallet2_id: int | None = None
+    portfolio_id: int | None = None
+    portfolio2_id: int | None = None
     order: bool
 
-    class Config:
-        from_attributes = True
+
+class TransactionResponse(TransactionBase):
+    """Ответ с данными транзакции."""
+
+    model_config = ConfigDict(from_attributes=True)
 
 
-class TransactionCreate(BaseModel):
-    date: datetime
-    ticker_id: str
-    ticker2_id: Optional[str] = None
-    quantity: Decimal
-    quantity2: Optional[Decimal] = None
-    price: Optional[Decimal] = None
-    price_usd: Optional[Decimal] = None
-    type: str
-    comment: Optional[str] = None
-    wallet_id: Optional[int] = None
-    wallet2_id: Optional[int] = None
-    portfolio_id: Optional[int] = None
-    portfolio2_id: Optional[int] = None
-    order: bool = False
+class TransactionCreateRequest(TransactionBase):
+    """Создание новой транзакции."""
 
 
-class TransactionUpdate(BaseModel):
+class TransactionUpdateRequest(BaseModel):
+    """Обновление транзакции."""
+
     status: str
-    amount: Optional[float] = None
+    amount: Decimal | None = None
+
+
+class TransactionCreate(TransactionBase):
+    """Создание транзакции в БД."""
+
+
+class TransactionUpdate(TransactionBase):
+    """Создание транзакции в БД."""
 
 
 class TransactionResponseWithAssets(BaseModel):
+    """Ответ с детальными данными транзакции и затронутых активов."""
+
     success: bool = True
-    message: Optional[str] = None
-    transaction: Optional[TransactionResponse] = None
-    portfolio_assets: Optional[List[AssetResponse]] = None
-    wallet_assets: Optional[List[WalletAssetResponse]] = None
+    message: str | None = None
+    transaction: TransactionResponse | None = None
+    portfolio_assets: list['PortfolioAssetResponse'] | None = None
+    wallet_assets: list['WalletAssetResponse'] | None = None

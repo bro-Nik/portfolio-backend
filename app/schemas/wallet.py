@@ -1,44 +1,50 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, ConfigDict
 
 
-class WalletEdit(BaseModel):
-    """Модель для создания и обновления кошелька"""
+class WalletBase(BaseModel):
+    """Базовые поля."""
+
     name: str
-    comment: Optional[str] = None
+    comment: str | None = None
 
 
-class WalletResponse(BaseModel):
-    """Модель ответа для кошелька"""
+class WalletCreateRequest(WalletBase):
+    """Создание нового кошелька."""
+
+
+class WalletUpdateRequest(WalletBase):
+    """Обновление кошелька."""
+
+
+class WalletCreate(WalletBase):
+    """Создание кошелька в БД."""
+
+    user_id: int
+
+
+class WalletUpdate(WalletBase):
+    """Обновление кошелька в БД."""
+
+
+class WalletResponse(WalletBase):
+    """Ответ с данными кошелька."""
+
     id: int
-    name: str
-    comment: Optional[str] = None
-    assets: List['WalletAssetResponse'] = []
+    assets: list['WalletAssetResponse'] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WalletListResponse(BaseModel):
-    """Модель ответа для списка кошельков"""
-    wallets: List[WalletResponse]
+    """Ответ со списком кошельков."""
+
+    wallets: list[WalletResponse]
 
 
 class WalletDeleteResponse(BaseModel):
-    """Модель ответа для удаления"""
+    """Ответ после удаления кошелька."""
+
     wallet_id: int
-
-
-class WalletAssetResponse(BaseModel):
-    """Модель ответа для актива"""
-    id: int
-    ticker_id: str
-    quantity: float
-    buy_orders: float
-    wallet_id: int
-
-    class Config:
-        from_attributes = True
 
 
 class WalletToSellResponse(BaseModel):
@@ -52,6 +58,3 @@ class WalletToSellResponse(BaseModel):
 class WalletToBuyResponse(BaseModel):
     id: int
     name: str
-
-class ErrorResponse(BaseModel):
-    message: str
