@@ -6,3 +6,4 @@ python-multipart
 asyncpg
 pyjwt
 pydantic[email]
+slowapi
