@@ -1,0 +1,36 @@
+services:
+  backend-db:
+    extends:
+      file: docker-compose.base.yml
+      service: backend-db
+    container_name: backend-db-test
+    networks:
+      - backend-net
+
+  backend-test:
+    extends:
+      file: docker-compose.base.yml
+      service: backend
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      TEST_DATABASE_URL: postgresql+asyncpg://user:pass@backend-db/db
+    container_name: backend-test
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./requirements.txt:/app/requirements.txt
+      - ./requirements-test.txt:/app/requirements-test.txt
+      - ./reports:/app/reports
+    networks:
+      - backend-net
+    command: ["pytest"]
+
+networks:
+  backend-net:
+    driver: bridge
+
+volumes:
+  db_data:
+  reports:
