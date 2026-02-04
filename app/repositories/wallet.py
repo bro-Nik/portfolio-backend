@@ -34,3 +34,10 @@ class WalletRepository(BaseRepository[Wallet, WalletCreate, WalletUpdate]):
             Wallet.user_id == user_id,
             relations=('assets',),
         )
+
+    async def exists_by_name_and_user(self, name: str, user_id: int) -> bool:
+        """Проверить, есть ли у пользователя кошелек с таким именем."""
+        return await self.exists_by(
+            Wallet.user_id == user_id,
+            Wallet.name == name,
+        )

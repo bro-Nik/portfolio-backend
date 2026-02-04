@@ -45,16 +45,3 @@ class WalletDeleteResponse(BaseModel):
     """Ответ после удаления кошелька."""
 
     wallet_id: int
-
-
-class WalletToSellResponse(BaseModel):
-    id: int
-    name: str
-    sort: float
-    free: float
-    subtext: str
-
-
-class WalletToBuyResponse(BaseModel):
-    id: int
-    name: str

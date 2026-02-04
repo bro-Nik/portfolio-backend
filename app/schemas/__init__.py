@@ -12,6 +12,8 @@ from .portfolio import (
     PortfolioListResponse,
     PortfolioResponse,
     PortfolioUpdate,
+    PortfolioCreateRequest,
+    PortfolioUpdateRequest,
 )
 from .wallet_asset import (
     WalletAssetCreate,
@@ -25,8 +27,6 @@ from .wallet import (
     WalletDeleteResponse,
     WalletListResponse,
     WalletResponse,
-    WalletToBuyResponse,
-    WalletToSellResponse,
     WalletUpdate,
     WalletUpdateRequest,
 )
@@ -36,6 +36,7 @@ from .transaction import (
     TransactionResponseWithAssets,
     TransactionUpdateRequest,
     TransactionUpdate,
+    TransactionCreate,
 )
 
 # Перестраиваем модели с форвард-декларациями

@@ -20,7 +20,7 @@ class TransactionBase(BaseModel):
     wallet2_id: int | None = None
     portfolio_id: int | None = None
     portfolio2_id: int | None = None
-    order: bool
+    order: bool | None = None
 
 
 class TransactionResponse(TransactionBase):

@@ -279,6 +279,7 @@ class BaseRepository[Model, CreateSchema: BaseModel, UpdateSchema: BaseModel]:
 
         obj = self.model(**create_data)
         self.session.add(obj)
+        await self.session.flush()
         return obj
 
     async def exists(self, id: Id) -> bool:
