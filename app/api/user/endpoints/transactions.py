@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.core.exceptions import service_exception_handler
+from app.core.rate_limit import limiter
 from app.dependencies import User, get_current_user, get_transaction_service
 from app.schemas import TransactionCreateRequest, TransactionResponseWithAssets
 from app.services.transaction import TransactionService
@@ -19,6 +20,7 @@ router = APIRouter(prefix='/transactions', tags=['Transactions'])
 
 
 @router.post('/')
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании транзакции')
 async def create_transaction(
     transaction_data: TransactionCreateRequest,
@@ -37,6 +39,7 @@ async def create_transaction(
 
 
 @router.put('/{transaction_id}')
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при изменении транзакции')
 async def update_transaction(
     transaction_id: int,
@@ -57,6 +60,7 @@ async def update_transaction(
 
 
 @router.delete('/{transaction_id}')
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при удалении транзакции')
 async def delete_transaction(
     transaction_id: int,

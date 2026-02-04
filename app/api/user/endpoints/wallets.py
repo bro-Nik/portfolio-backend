@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.core.exceptions import service_exception_handler
+from app.core.rate_limit import limiter
 from app.dependencies import User, get_current_user, get_wallet_asset_service, get_wallet_service
 from app.schemas import (
     WalletAssetDetailResponse,
@@ -27,6 +28,7 @@ router = APIRouter(prefix='/wallets', tags=['Wallets'])
 
 
 @router.get('/')
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при получении кошельков')
 async def get_user_wallets(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -38,6 +40,7 @@ async def get_user_wallets(
 
 
 @router.post('/', status_code=201)
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании кошелька')
 async def create_wallet(
     wallet_data: WalletCreateRequest,
@@ -49,6 +52,7 @@ async def create_wallet(
 
 
 @router.put('/{wallet_id}')
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при изменении кошелька')
 async def update_wallet(
     wallet_id: int,
@@ -61,6 +65,7 @@ async def update_wallet(
 
 
 @router.delete('/{wallet_id}')
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при удалении кошелька')
 async def delete_wallet(
     wallet_id: int,
@@ -73,6 +78,7 @@ async def delete_wallet(
 
 
 @router.get('/assets/{asset_id}')
+@limiter.limit('5/minute')
 @service_exception_handler('Ошибка при получении информации об активе')
 async def get_asset(
     asset_id: int,
