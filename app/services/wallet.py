@@ -2,6 +2,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictException, NotFoundError
 from app.models import Transaction, Wallet
 from app.repositories import WalletRepository
 from app.schemas import (
@@ -32,7 +33,7 @@ class WalletService:
         wallet = await self.repo.get_by_id_and_user_with_assets(wallet_id, user_id)
 
         if not wallet:
-            raise ValueError('Кошелек не найден')
+            raise NotFoundError(f'Кошелек id={wallet_id} не найден')
 
         return WalletResponse.model_validate(wallet)
 
@@ -121,7 +122,7 @@ class WalletService:
         """Валидация данных для создания кошелька."""
         # Проверка уникальности имени
         if await self.repo.exists_by_name_and_user(data.name, user_id):
-            raise ValueError('Портфель с таким именем уже существует')
+            raise ConflictException('Кошелек с таким именем уже существует')
 
     async def _validate_update_data(
         self,
@@ -133,4 +134,4 @@ class WalletService:
         # Проверка уникальности имени (если изменилось)
         if (data.name != wallet.name and
             await self.repo.exists_by_name_and_user(data.name, user_id)):
-                raise ValueError('Кошелек с таким именем уже существует')
+                raise ConflictException('Кошелек с таким именем уже существует')

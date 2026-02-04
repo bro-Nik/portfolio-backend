@@ -2,6 +2,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.models import Transaction, WalletAsset
 from app.repositories import WalletAssetRepository
 from app.schemas import WalletAssetDetailResponse
@@ -20,7 +21,7 @@ class WalletAssetService:
         asset = await self.repo.get_by_id_and_user_with_details(asset_id, user_id)
 
         if not asset:
-            raise ValueError('Актив не найден')
+            raise NotFoundError(f'Актив id={asset_id} не найден')
 
         # Подготовка транзакций
         transactions = [

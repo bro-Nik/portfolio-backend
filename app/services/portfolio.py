@@ -2,6 +2,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictException, NotFoundError
 from app.models import Portfolio, Transaction
 from app.repositories import PortfolioRepository
 from app.schemas import (
@@ -32,7 +33,7 @@ class PortfolioService:
         portfolio = await self.repo.get_by_id_and_user_with_assets(portfolio_id, user_id)
 
         if not portfolio:
-            raise ValueError('Портфель не найден')
+            raise NotFoundError(f'Портфель id={portfolio_id} не найден')
 
         return PortfolioResponse.model_validate(portfolio)
 
@@ -124,7 +125,7 @@ class PortfolioService:
         """Валидация данных для создания портфеля."""
         # Проверка уникальности имени
         if await self.repo.exists_by_name_and_user(data.name, user_id):
-            raise ValueError('Портфель с таким именем уже существует')
+            raise ConflictException('Портфель с таким именем уже существует')
 
     async def _validate_update_data(
         self,
@@ -136,4 +137,4 @@ class PortfolioService:
         # Проверка уникальности имени (если изменилось)
         if (data.name != portfolio.name and
             await self.repo.exists_by_name_and_user(data.name, user_id)):
-                raise ValueError('Портфель с таким именем уже существует')
+                raise ConflictException('Портфель с таким именем уже существует')

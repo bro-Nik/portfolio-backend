@@ -4,6 +4,7 @@ import operator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.models import Transaction
 from app.repositories import TransactionRepository
 from app.schemas import (
@@ -58,7 +59,7 @@ class TransactionService:
         """Обновление транзакции."""
         transaction = await self.repo.get(transaction_id)
         if not transaction:
-            raise ValueError(f'Transaction {transaction_id} not found')
+            raise NotFoundError(f'Транзакция id={transaction_id} не найдена')
 
         # Уведомление сервисов о отмене транзакции
         await asyncio.gather(
@@ -81,7 +82,7 @@ class TransactionService:
         """Удаление транзакции."""
         transaction = await self.repo.get(transaction_id)
         if not transaction:
-            raise ValueError(f'Transaction {transaction_id} not found')
+            raise NotFoundError(f'Транзакция id={transaction_id} не найдена')
 
         # Уведомление сервисов о отмене транзакции
         await asyncio.gather(

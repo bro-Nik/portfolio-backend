@@ -2,6 +2,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models import Asset, Transaction
 from app.repositories import AssetRepository
 from app.schemas import (
@@ -125,7 +126,7 @@ class PortfolioAssetService:
         asset = await self.repo.get_by_id_and_user_with_details(asset_id, user_id)
 
         if not asset:
-            raise ValueError('Актив не найден')
+            raise NotFoundError(f'Актив id={asset_id} не найден')
 
         # Подготовка транзакций
         transactions = [
@@ -196,4 +197,4 @@ class PortfolioAssetService:
         """Валидация данных для создания портфеля."""
         # Проверка, что актив еще не добавлен
         if await self.repo.get_by_ticker_and_portfolio(data.ticker_id, data.portfolio_id):
-            raise ValueError('Этот актив уже добавлен в портфель')
+            raise ConflictError('Этот актив уже добавлен в портфель')
