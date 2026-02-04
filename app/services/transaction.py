@@ -95,7 +95,7 @@ class TransactionService:
 
     async def get_affected_portfolio_assets(
         self,
-        transactions: list[Transaction],
+        transactions: tuple[Transaction, ...],
     ) -> list[PortfolioAssetResponse]:
         """Получить измененные активы портфелей на основе транзакций."""
         if not transactions:
@@ -131,7 +131,7 @@ class TransactionService:
 
     async def get_affected_wallet_assets(
         self,
-        transactions: list[Transaction],
+        transactions: tuple[Transaction, ...],
     ) -> list[WalletAssetResponse]:
         """Получить измененные активы кошельков на основе транзакций."""
         if not transactions:
