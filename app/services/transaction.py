@@ -1,113 +1,102 @@
-from typing import List
+import asyncio
+import functools
+import operator
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import Transaction
+from app.repositories import TransactionRepository
+from app.schemas import (
+    PortfolioAssetResponse,
+    TransactionCreate,
+    TransactionCreateRequest,
+    TransactionResponse,
+    TransactionUpdate,
+    TransactionUpdateRequest,
+    WalletAssetResponse,
+)
 from app.services.portfolio import PortfolioService
-from app.services.wallet import WalletService
+from app.services.portfolio_asset import PortfolioAssetService
 from app.services.transaction_analyzer import TransactionAnalyzer
-from app.models import Asset, Transaction, WalletAsset
-from app.schemas import TransactionCreate, TransactionUpdate
-from app.repositories.transaction import TransactionRepository
+from app.services.wallet import WalletService
+from app.services.wallet_asset import WalletAssetService
 
 
 class TransactionService:
-    def __init__(self, session: AsyncSession):
+    """Сервис для работы с транзакциями активов портфелей и кошельков."""
+
+    def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self.transaction_repo = TransactionRepository(session)
+        self.repo = TransactionRepository(session)
         self.portfolio_service = PortfolioService(session)
+        self.portfolio_asset_service = PortfolioAssetService(session)
         self.wallet_service = WalletService(session)
+        self.wallet_asset_service = WalletAssetService(session)
         self.analyzer = TransactionAnalyzer()
 
-    async def create(
+    async def create_transaction(
         self,
         user_id: int,
-        transaction_data: TransactionCreate
-    ) -> Transaction:
-        """Создание новой транзакции"""
-        try:
-            # Сохранение транзакции
-            transaction = Transaction(**transaction_data.model_dump(exclude_unset=True))
-            saved_transaction = await self.transaction_repo.create(transaction)
+        transaction_data: TransactionCreateRequest,
+    ) -> TransactionResponse:
+        """Создание новой транзакции."""
+        transaction_to_db = TransactionCreate(**transaction_data.model_dump(exclude_unset=True))
+        transaction = await self.repo.create(transaction_to_db)
 
-            # Уведомление сервисов о новой транзакции
-            await self.portfolio_service.handle_transaction(user_id, transaction)
-            await self.wallet_service.handle_transaction(user_id, transaction)
+        # Уведомление сервисов о новой транзакции
+        await self.portfolio_service.handle_transaction(user_id, transaction)
+        await self.wallet_service.handle_transaction(user_id, transaction)
 
-            await self.session.commit()
-            await self.session.refresh(saved_transaction)
+        return transaction
 
-            return saved_transaction
-
-        except Exception as e:
-            await self.session.rollback()
-            raise e
-
-    async def update(
+    async def update_transaction(
         self,
         user_id: int,
         transaction_id: int,
-        update_data: TransactionUpdate
+        update_data: TransactionUpdateRequest,
     ) -> tuple[Transaction, Transaction]:
-        """Обновление транзакции"""
-        try:
-            # Поиск транзакции
-            transaction = await self.transaction_repo.get(transaction_id)
-            if not transaction:
-                raise ValueError(f"Transaction {transaction_id} not found")
+        """Обновление транзакции."""
+        transaction = await self.repo.get(transaction_id)
+        if not transaction:
+            raise ValueError(f'Transaction {transaction_id} not found')
 
-            # Уведомление сервисов о отмене транзакции
-            await self.portfolio_service.handle_transaction(user_id, transaction, cancel=True)
-            await self.wallet_service.handle_transaction(user_id, transaction, cancel=True)
+        # Уведомление сервисов о отмене транзакции
+        await asyncio.gather(
+            self.portfolio_service.handle_transaction(user_id, transaction, cancel=True),
+            self.wallet_service.handle_transaction(user_id, transaction, cancel=True),
+        )
 
-            # Обновление полей
-            for field, value in update_data.model_dump(exclude_unset=True).items():
-                setattr(transaction, field, value)
+        transaction_to_db = TransactionUpdate(**update_data.model_dump(exclude_unset=True))
+        updated_transaction = await self.repo.update(transaction.id, transaction_to_db)
 
-            # Обновление в репозитории
-            updated_transaction = await self.transaction_repo.update(
-                transaction.id, update_data
-            )
+        # Уведомление сервисов о транзакции
+        await asyncio.gather(
+            self.portfolio_service.handle_transaction(user_id, updated_transaction),
+            self.wallet_service.handle_transaction(user_id, updated_transaction),
+        )
 
-            # Уведомление сервисов о транзакции
-            await self.portfolio_service.handle_transaction(user_id, updated_transaction)
-            await self.wallet_service.handle_transaction(user_id, updated_transaction)
+        return updated_transaction, transaction
 
-            await self.session.commit()
-            await self.session.refresh(updated_transaction)
+    async def delete_transaction(self, user_id:int, transaction_id: int) -> Transaction:
+        """Удаление транзакции."""
+        transaction = await self.repo.get(transaction_id)
+        if not transaction:
+            raise ValueError(f'Transaction {transaction_id} not found')
 
-            return updated_transaction, transaction
+        # Уведомление сервисов о отмене транзакции
+        await asyncio.gather(
+            self.portfolio_service.handle_transaction(user_id, transaction, cancel=True),
+            self.wallet_service.handle_transaction(user_id, transaction, cancel=True),
+        )
 
-        except Exception as e:
-            await self.session.rollback()
-            raise e
-
-    async def delete(self, user_id:int, transaction_id: int) -> Transaction:
-        """Удаление транзакции"""
-        try:
-            transaction = await self.transaction_repo.get(transaction_id)
-            if not transaction:
-                raise ValueError(f"Transaction {transaction_id} not found")
-
-            # Уведомление сервисов о отмене транзакции
-            await self.portfolio_service.handle_transaction(user_id, transaction, cancel=True)
-            await self.wallet_service.handle_transaction(user_id, transaction, cancel=True)
-
-            # Удаление
-            await self.transaction_repo.delete(transaction_id)
-
-            await self.session.commit()
-
-            return transaction
-
-        except Exception as e:
-            await self.session.rollback()
-            raise e
+        await self.repo.delete(transaction_id)
+        return transaction
 
     async def get_affected_portfolio_assets(
         self,
-        user_id: int,
-        transactions: List[Transaction]
-    ) -> List[Asset]:
-        """Получить измененные активы портфелей на основе транзакций"""
+        transactions: list[Transaction],
+    ) -> list[PortfolioAssetResponse]:
+        """Получить измененные активы портфелей на основе транзакций."""
         if not transactions:
             return []
 
@@ -129,22 +118,21 @@ class TransactionService:
                 portfolio_assets_map[portfolio_id].append(ticker_id)
 
         # Получаем активы для каждого портфеля
-        affected_assets = []
-        for portfolio_id, ticker_ids in portfolio_assets_map.items():
-            print(portfolio_id)
-            assets = await self.portfolio_service.get_assets_by_portfolio_and_tickers(
-                user_id, portfolio_id, ticker_ids
-            )
-            affected_assets.extend(assets)
+        tasks = [
+            self.portfolio_asset_service.get_assets_by_portfolio_and_tickers(p_id, t_ids)
+            for p_id, t_ids in portfolio_assets_map.items()
+        ]
+        results = await asyncio.gather(*tasks)
 
-        return affected_assets
+        assets = functools.reduce(operator.iadd, results, [])
+        return [PortfolioAssetResponse.model_validate(a) for a in assets]
+
 
     async def get_affected_wallet_assets(
         self,
-        user_id: int,
-        transactions: List[Transaction]
-    ) -> List[WalletAsset]:
-        """Получить измененные активы кошельков на основе транзакций"""
+        transactions: list[Transaction],
+    ) -> list[WalletAssetResponse]:
+        """Получить измененные активы кошельков на основе транзакций."""
         if not transactions:
             return []
 
@@ -165,31 +153,20 @@ class TransactionService:
             wallet_assets_map[wallet_id].append(ticker_id)
 
         # Получаем активы для каждого кошелька
-        affected_assets = []
-        for wallet_id, ticker_ids in wallet_assets_map.items():
-            assets = await self.wallet_service.get_assets_by_wallet_and_tickers(
-                user_id, wallet_id, ticker_ids
-            )
-            affected_assets.extend(assets)
+        tasks = [
+            self.wallet_asset_service.get_assets_by_wallet_and_tickers(w_id, t_ids)
+            for w_id, t_ids in wallet_assets_map.items()
+        ]
+        results = await asyncio.gather(*tasks)
 
-        return affected_assets
+        assets = functools.reduce(operator.iadd, results, [])
+        return [WalletAssetResponse.model_validate(a) for a in assets]
 
-    # async def convert_order_to_transaction(self,user_id:int, transaction_id: int) -> Transaction:
-    #     """Конвертация ордера в транзакцию"""
-    #     transaction = await self.transaction_repo.get_by_id(self.db, transaction_id)
-    #     if not transaction:
-    #         raise ValueError(f"Transaction {transaction_id} not found")
-    #
-    #     # Уведомление сервисов о отмене транзакции
-    #     await self.portfolio_service.handle_transaction(user_id, transaction, cancel=True)
-    #     await self.wallet_service.handle_transaction(user_id, transaction, cancel=True)
-    #
-    #     # Обновление полей
-    #     transaction.order = False
-    #     # transaction.date = datetime.now(timezone.utc)
-    #
-    #     # Уведомление сервисов о транзакции
-    #     await self.portfolio_service.handle_transaction(user_id, transaction)
-    #     await self.wallet_service.handle_transaction(user_id, transaction)
-    #
-    #     return await self.transaction_repo.update(transaction)
+    async def convert_order_to_transaction(
+        self,
+        user_id:int,
+        transaction_id: int,
+    ) -> tuple[Transaction, Transaction]:
+        """Конвертация ордера в транзакцию."""
+        update_data = TransactionUpdate(order=False)
+        return await self.update_transaction(user_id, transaction_id, update_data)

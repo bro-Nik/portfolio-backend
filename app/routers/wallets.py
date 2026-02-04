@@ -28,7 +28,7 @@ async def get_user_wallets(
 ) -> WalletListResponse:
     """Получение всех кошельков пользователя"""
     try:
-        wallets = await wallet_service.get_user_wallets(current_user.id)
+        wallets = await wallet_service.get_wallets(current_user.id)
         return WalletListResponse(wallets=wallets)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

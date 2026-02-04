@@ -1,203 +1,86 @@
-from typing import List
+import asyncio
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import Portfolio, Transaction
+from app.repositories import PortfolioRepository
+from app.schemas import (
+    PortfolioCreate,
+    PortfolioCreateRequest,
+    PortfolioResponse,
+    PortfolioUpdate,
+    PortfolioUpdateRequest,
+)
 from app.services.portfolio_asset import PortfolioAssetService
-from app.models import Transaction, Portfolio, Asset
-from app.repositories.portfolio import PortfolioRepository
-from app.repositories.portfolio_asset import AssetRepository
-from app.schemas import PortfolioEdit
 
 
 class PortfolioService:
-    def __init__(self, session: AsyncSession):
+    """Сервис для работы с портфелями пользователей."""
+
+    def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self.portfolio_repo = PortfolioRepository(session)
-        self.asset_repo = AssetRepository(session)
+        self.repo = PortfolioRepository(session)
         self.asset_service = PortfolioAssetService(session)
 
-    async def get_user_portfolios(self, user_id: int) -> List[Portfolio]:
-        """Получение всех портфелей пользователя"""
-        return await self.portfolio_repo.get_many_by_user(user_id, include_assets=True)
+    async def get_portfolios(self, user_id: int) -> list[PortfolioResponse]:
+        """Получить все портфели пользователя."""
+        portfolios = await self.repo.get_many_by_user(user_id, include_assets=True)
+        return [PortfolioResponse.model_validate(p) for p in portfolios]
 
-    async def get_user_portfolio(self, portfolio_id: int, user_id: int) -> Portfolio:
-        """Получение портфеля с проверкой прав доступа"""
-        portfolio = await self.portfolio_repo.get_by_id_and_user_with_assets(portfolio_id, user_id)
+    async def get_portfolio(self, portfolio_id: int, user_id: int) -> PortfolioResponse:
+        """Получить портфель пользователя."""
+        portfolio = await self.repo.get_by_id_and_user_with_assets(portfolio_id, user_id)
 
         if not portfolio:
-            raise ValueError("Портфель не найден")
+            raise ValueError('Портфель не найден')
 
-        return portfolio
+        return PortfolioResponse.model_validate(portfolio)
 
     async def create_portfolio(
         self,
         user_id: int,
-        portfolio_data: PortfolioEdit
-    ) -> Portfolio:
-        """Создание нового портфеля"""
-        # Проверка уникальности имени
-        if await self.portfolio_repo.exists_by_name_and_user(portfolio_data.name, user_id):
-            raise ValueError("Портфель с таким именем уже существует")
+        portfolio_data: PortfolioCreateRequest,
+    ) -> PortfolioResponse:
+        """Создать портфель для пользователя."""
+        await self._validate_create_data(portfolio_data, user_id)
 
-        portfolio = Portfolio(
+        portfolio_to_db = PortfolioCreate(
+            **portfolio_data.model_dump(),
             user_id=user_id,
-            **portfolio_data.model_dump()
         )
 
-        # Добавляем в сессию
-        portfolio = await self.portfolio_repo.create(portfolio)
-
-        await self.session.commit()
-        await self.session.refresh(portfolio)
-
-        # Получаем портфель с загруженными связями
-        portfolio = await self.get_user_portfolio(portfolio.id, user_id)
-
-        return portfolio
+        portfolio = await self.repo.create(portfolio_to_db)
+        await self.session.flush()
+        return await self.get_portfolio(portfolio.id, user_id)  # Портфель с активами
 
     async def update_portfolio(
         self,
         portfolio_id: int,
         user_id: int,
-        portfolio_data: PortfolioEdit
-    ) -> Portfolio:
-        """Обновление портфеля"""
-        portfolio = await self.get_user_portfolio(portfolio_id, user_id)
+        portfolio_data: PortfolioUpdateRequest,
+    ) -> PortfolioResponse:
+        """Обновить портфель пользователя."""
+        portfolio = await self.get_portfolio(portfolio_id, user_id)
+        await self._validate_update_data(portfolio_data, user_id, portfolio)
 
-        # Проверка уникальности имени (если имя изменилось)
-        if portfolio_data.name != portfolio.name:
-            if await self.portfolio_repo.exists_by_name_and_user(
-                portfolio_data.name, user_id
-            ):
-                raise ValueError("Портфель с таким именем уже существует")
+        portfolio_to_db = PortfolioUpdate(**portfolio_data.model_dump())
 
-        # Обновление полей
-        for field, value in portfolio_data.model_dump(exclude_unset=True).items():
-            setattr(portfolio, field, value)
-
-        portfolio = await self.portfolio_repo.update(portfolio_id, portfolio_data)
-
-        await self.session.commit()
-        await self.session.refresh(portfolio)
-        return portfolio
+        portfolio = await self.repo.update(portfolio_id, portfolio_to_db)
+        return await self.get_portfolio(portfolio_id, user_id)  # Портфель с активами
 
     async def delete_portfolio(self, portfolio_id: int, user_id: int) -> None:
-        """Удаление портфеля"""
-        await self.get_user_portfolio(portfolio_id, user_id)
+        """Удалить портфель пользователя."""
+        await self.get_portfolio(portfolio_id, user_id)
+        await self.repo.delete(portfolio_id)
 
-        # ToDo Переделать (временно)
-        relations = ('assets', 'transactions')
-        portfolio = await self.portfolio_repo.get_by(Portfolio.user_id == user_id, relations=relations)
-
-        for t in portfolio.transactions:
-            await self.session.delete(t)
-        for a in portfolio.assets:
-            await self.session.delete(a)
-
-        await self.portfolio_repo.delete(portfolio_id)
-
-        await self.session.commit()
-
-    async def add_asset(self, portfolio_id: int, user_id: int, ticker_id: str) -> Portfolio:
-        """Добавление актива в портфель"""
-        portfolio = await self.get_user_portfolio(portfolio_id, user_id)
-
-        # Проверка, что актив еще не добавлен
-        if await self.asset_service.get(ticker_id, portfolio_id):
-            raise ValueError("Этот актив уже добавлен в портфель")
-
-        # Создание актива
-        asset = Asset(
-            portfolio_id=portfolio_id,
-            ticker_id=ticker_id
-        )
-
-        await self.asset_repo.create(asset)
-        await self.session.commit()
-        await self.session.refresh(portfolio)
-
-        return portfolio
-
-    async def remove_asset(self, portfolio_id: int, user_id: int, asset_id: int) -> Portfolio:
-        """Удаление актива из портфеля"""
-        portfolio = await self.get_user_portfolio(portfolio_id, user_id)
-
-        # Проверка, что актив существует в портфеле
-        asset = await self.asset_repo.get(asset_id)
-        if not asset or asset.portfolio_id != portfolio_id:
-            raise ValueError("Актив не найден в портфеле")
-
-        await self.asset_repo.delete(asset_id)
-        await self.session.commit()
-        await self.session.refresh(portfolio)
-
-        return portfolio
-
-
-    async def get_asset_detail(self, asset_id: int, user_id: int) -> dict:
-        """Получение детальной информации об активе"""
-        # Загружаем актив с тикером и портфелем
-        asset = await self.asset_repo.get_by_id_and_user_with_details(asset_id, user_id)
-
-        if not asset:
-            raise ValueError("Актив не найден")
-
-        # Подготовка транзакций
-        asset_transactions = []
-        for transaction in asset.transactions:
-            asset_transactions.append({
-                "id": transaction.id,
-                "order": transaction.order,
-                "portfolio_id": transaction.portfolio_id,
-                "portfolio2_id": transaction.portfolio2_id,
-                "wallet_id": transaction.wallet_id,
-                # "wallet2_id": transaction.wallet2_id,
-                "date": transaction.date,
-                "ticker_id": transaction.ticker_id,
-                "ticker2_id": transaction.ticker2_id,
-                "quantity": transaction.quantity,
-                "quantity2": transaction.quantity2,
-                "price": transaction.price,
-                "price_usd": transaction.price_usd,
-                "type": transaction.type,
-                "comment": transaction.comment,
-            })
-
-        # Расчет распределения по портфелям
-        portfolio_distribution = await self._calculate_portfolio_distribution(
-            asset.ticker_id, user_id
-        )
-
-        return {
-            "transactions": asset_transactions,
-            "distribution": portfolio_distribution
-        }
-
-    async def _calculate_portfolio_distribution(self, ticker_id: str, user_id: int) -> dict:
-        """Расчет распределения актива по портфелям"""
-        assets = await self.asset_repo.get_many_by_ticker_and_user(ticker_id, user_id)
-
-        total_quantity = sum(asset.quantity for asset in assets)
-        total_amount = sum(asset.amount for asset in assets)
-
-        portfolio_distribution = []
-        for asset in assets:
-            percentage = (asset.quantity / total_quantity * 100) if total_quantity > 0 else 0
-            portfolio_distribution.append({
-                "portfolio_id": asset.portfolio.id,
-                "portfolio_name": asset.portfolio.name,
-                "quantity": asset.quantity,
-                "amount": asset.amount,
-                "percentage_of_total": percentage
-            })
-
-        return {
-            "total_quantity_all_portfolios": total_quantity,
-            "total_amount_all_portfolios": total_amount,
-            "portfolios": portfolio_distribution
-        }
-
-    async def handle_transaction(self, user_id: int, t: Transaction, cancel = False):
-        """Обработка транзакции"""
+    async def handle_transaction(
+        self,
+        user_id: int,
+        t: Transaction,
+        *,
+        cancel: bool = False,
+    ) -> None:
+        """Обработка транзакции."""
         if not t.portfolio_id:
             return
 
@@ -211,44 +94,46 @@ class PortfolioService:
             await self._handle_input_output(user_id, t)
 
         # Уведомление сервиса актива о новой транзакции
-        await self.asset_service.handle_transaction(t, cancel)
+        await self.asset_service.handle_transaction(t, cancel=cancel)
 
-    async def _handle_trade(self, user_id: int, t: Transaction):
-        """Обработка торговой операции"""
+    async def _handle_trade(self, user_id: int, t: Transaction) -> None:
+        """Обработка торговой операции."""
         # Валидация портфеля
-        await self.get_user_portfolio(t.portfolio_id, user_id)
+        await self.get_portfolio(t.portfolio_id, user_id)
 
-    async def _handle_earning(self, user_id: int, t: Transaction):
-        """Обработка заработка"""
+    async def _handle_earning(self, user_id: int, t: Transaction) -> None:
+        """Обработка заработка."""
         # Валидация портфеля
-        await self.get_user_portfolio(t.portfolio_id, user_id)
+        await self.get_portfolio(t.portfolio_id, user_id)
 
-    async def _handle_transfer(self, user_id: int, t: Transaction):
-        """Обработка перевода между портфелями"""
-        # Валидация исходного портфеля
-        await self.get_user_portfolio(t.portfolio_id, user_id)
-
-        # Валидация целевого портфеля
-        await self.get_user_portfolio(t.portfolio2_id, user_id)
-
-    async def _handle_input_output(self, user_id: int, t: Transaction):
-        """Обработка ввода-вывода"""
-        # Валидация портфеля
-        await self.get_user_portfolio(t.portfolio_id, user_id)
-
-    async def get_assets_by_portfolio_and_tickers(
-        self,
-        user_id: int,
-        portfolio_id: int,
-        ticker_ids: List[str]
-    ) -> List[Asset]:
-        """Получить активы портфеля по тикерам"""
-        # Проверяем права на портфель
-        await self.get_user_portfolio(portfolio_id, user_id)
-
-        if not ticker_ids:
-            return []
-
-        return await self.asset_repo.get_many_by_tickers_and_portfolio(
-            ticker_ids, portfolio_id
+    async def _handle_transfer(self, user_id: int, t: Transaction) -> None:
+        """Обработка перевода между портфелями."""
+        await asyncio.gather(
+            # Валидация исходного портфеля
+            await self.get_portfolio(t.portfolio_id, user_id),
+            # Валидация целевого портфеля
+            await self.get_portfolio(t.portfolio2_id, user_id),
         )
+
+    async def _handle_input_output(self, user_id: int, t: Transaction) -> None:
+        """Обработка ввода-вывода."""
+        # Валидация портфеля
+        await self.get_portfolio(t.portfolio_id, user_id)
+
+    async def _validate_create_data(self, data: PortfolioCreateRequest, user_id: int) -> None:
+        """Валидация данных для создания портфеля."""
+        # Проверка уникальности имени
+        if await self.repo.exists_by_name_and_user(data.name, user_id):
+            raise ValueError('Портфель с таким именем уже существует')
+
+    async def _validate_update_data(
+        self,
+        data: PortfolioUpdateRequest,
+        user_id: int,
+        portfolio: Portfolio,
+    ) -> None:
+        """Валидация данных для обновления портфеля."""
+        # Проверка уникальности имени (если изменилось)
+        if (data.name != portfolio.name and
+            await self.repo.exists_by_name_and_user(data.name, user_id)):
+                raise ValueError('Портфель с таким именем уже существует')
