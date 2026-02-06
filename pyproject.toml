@@ -51,8 +51,8 @@ force-sort-within-sections = true     # Сортировка внутри сек
 "__init__.py" = ["F401"]
 # Игнорировать максимальное количество аргументов для роутов
 "**/endpoints/**/*.py" = ["PLR0913"]
-# Использование assert в тестах
-"tests/**/*.py" = ["S101", "ANN201", "ANN001", "S105", "S106", "PLR2004", "SLF001"]
+# Правила в тестах
+"tests/**/*.py" = ["S101", "ANN201", "ANN001", "ANN202", "ANN003", "S105", "S106", "PLR2004", "SLF001", "D101", "D102"]
 
 # Переопределение настроек для тестовых файлов
 [tool.ruff.extend-per-file-ignores]
@@ -65,9 +65,17 @@ reportMissingModuleSource = false
 include = ["app"]
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
 addopts = [
     "--cov=app",
     "--cov-report=html:reports/coverage-html",
     "--cov-report=xml:reports/coverage.xml",
     "--junitxml=reports/junit.xml",
+
 ]
