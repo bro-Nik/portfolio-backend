@@ -3,35 +3,33 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
-import pytest_asyncio
 
 from app.core.exceptions import NotFoundError
 from app.models import Transaction
 from app.services.transaction import TransactionService
 
 
+@pytest.fixture
+async def service(
+    mock_db_session,
+    mock_transaction_repo,
+    mock_portfolio_service,
+    mock_portfolio_asset_service,
+    mock_wallet_service,
+    mock_wallet_asset_service,
+):
+    service = TransactionService(mock_db_session)
+
+    service.repo = mock_transaction_repo
+    service.portfolio_service = mock_portfolio_service
+    service.portfolio_asset_service = mock_portfolio_asset_service
+    service.wallet_service = mock_wallet_service
+    service.wallet_asset_service = mock_wallet_asset_service
+
+    return service
+
+
 class TestTransactionService:
-    @pytest_asyncio.fixture
-    async def service(
-        self,
-        mock_db_session,
-        mock_transaction_repo,
-        mock_portfolio_service,
-        mock_portfolio_asset_service,
-        mock_wallet_service,
-        mock_wallet_asset_service,
-    ):
-        service = TransactionService(mock_db_session)
-
-        service.repo = mock_transaction_repo
-        service.portfolio_service = mock_portfolio_service
-        service.portfolio_asset_service = mock_portfolio_asset_service
-        service.wallet_service = mock_wallet_service
-        service.wallet_asset_service = mock_wallet_asset_service
-
-        return service
-
-    @pytest.mark.asyncio
     async def test_create_transaction_success(self, service, mock, data):
         transaction_data = data(date=datetime.now(UTC), ticker_id='AAPL', quantity=Decimal(10), type='Buy')
         transaction = mock(date=transaction_data.date, ticker_id='AAPL', quantity=Decimal(10), type='Buy')
@@ -46,7 +44,6 @@ class TestTransactionService:
             service.portfolio_service.handle_transaction.assert_called_once_with(1, transaction)
             service.wallet_service.handle_transaction.assert_called_once_with(1, transaction)
 
-    @pytest.mark.asyncio
     async def test_update_transaction_success(self, service, mock, data):
         transaction_id = 1
         update_data = data(date=datetime.now(UTC), ticker_id='AAPL', quantity=Decimal(10), type='Buy')
@@ -79,7 +76,6 @@ class TestTransactionService:
             service.wallet_service.handle_transaction.assert_any_call(1, existing_transaction, cancel=True)
             service.wallet_service.handle_transaction.assert_any_call(1, updated_transaction)
 
-    @pytest.mark.asyncio
     async def test_update_transaction_not_found(self, service, data):
         transaction_id = 999
         update_data = data(date=datetime.now(UTC), ticker_id='AAPL', quantity=Decimal(10), type='Buy')
@@ -90,7 +86,6 @@ class TestTransactionService:
         ):
             await service.update_transaction(1, transaction_id, update_data)
 
-    @pytest.mark.asyncio
     async def test_delete_transaction_success(self, service):
         transaction_id = 1
 
@@ -117,7 +112,6 @@ class TestTransactionService:
             )
             service.repo.delete.assert_called_once_with(1)
 
-    @pytest.mark.asyncio
     async def test_delete_transaction_not_found(self, service):
         transaction_id = 999
 

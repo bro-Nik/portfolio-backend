@@ -1,22 +1,21 @@
 from unittest.mock import patch
 
 import pytest
-import pytest_asyncio
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.schemas.portfolio import PortfolioResponse
 from app.services.portfolio import PortfolioService
 
 
-class TestPortfolioService:
-    @pytest_asyncio.fixture
-    async def service(self, mock_db_session, mock_portfolio_repo, mock_portfolio_asset_service):
-        service = PortfolioService(mock_db_session)
-        service.repo = mock_portfolio_repo
-        service.asset_service = mock_portfolio_asset_service
-        return service
+@pytest.fixture
+async def service(mock_db_session, mock_portfolio_repo, mock_portfolio_asset_service):
+    service = PortfolioService(mock_db_session)
+    service.repo = mock_portfolio_repo
+    service.asset_service = mock_portfolio_asset_service
+    return service
 
-    @pytest.mark.asyncio
+
+class TestPortfolioService:
     async def test_get_portfolios_success(self, service, mock):
         portfolios = [
             mock(id=1, name='Test1'),
@@ -34,7 +33,6 @@ class TestPortfolioService:
             assert result[1].name == 'Test2'
             service.repo.get_many_by_user.assert_called_once_with(1, include_assets=True)
 
-    @pytest.mark.asyncio
     async def test_get_portfolio_success(self, service, mock):
         portfolio = mock(id=1, name='Test', assets=[mock()])
 
@@ -49,7 +47,6 @@ class TestPortfolioService:
             assert len(result.assets) == 1
             service.repo.get_by_id_and_user_with_assets.assert_called_once_with(1, 1)
 
-    @pytest.mark.asyncio
     async def test_get_portfolio_not_found(self, service):
         with (
             patch.object(service.repo, 'get_by_id_and_user_with_assets', return_value=None),
@@ -57,7 +54,6 @@ class TestPortfolioService:
         ):
             await service.get_portfolio(999, 1)
 
-    @pytest.mark.asyncio
     async def test_create_portfolio_success(self, service, mock, data):
         portfolio_data = data(name='New Portfolio', market='stocks')
         portfolio = mock(name='New Portfolio')
@@ -75,7 +71,6 @@ class TestPortfolioService:
             service.repo.create.assert_called_once()
             service.session.flush.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_create_portfolio_duplicate_name(self, service, data):
         portfolio_data = data(name='Existing Portfolio')
 
@@ -85,7 +80,6 @@ class TestPortfolioService:
         ):
             await service.create_portfolio(1, portfolio_data)
 
-    @pytest.mark.asyncio
     async def test_update_portfolio_success(self, service, mock, data):
         portfolio_data = data(name='Updated Name')
         existing_portfolio = mock(id=1, name='Old Name', user_id=1)
@@ -100,10 +94,9 @@ class TestPortfolioService:
             result = await service.update_portfolio(1, 1, portfolio_data)
 
             assert result.name == 'Updated Name'
-            service.repo.get_by_id_and_user_with_assets.assert_called_with(1, 1)
+            service.repo.get_by_id_and_user.assert_called_with(1, 1)
             service.repo.exists_by_name_and_user.assert_called_once_with('Updated Name', 1)
 
-    @pytest.mark.asyncio
     async def test_delete_portfolio_success(self, service, mock):
         portfolio = mock(id=1, user_id=1)
 
@@ -116,7 +109,6 @@ class TestPortfolioService:
             service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
             service.repo.delete.assert_called_once_with(1)
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_trade(self, service, mock):
         transaction = mock(portfolio_id=1, type='Buy')
         portfolio = mock(id=1, user_id=1)
@@ -130,7 +122,6 @@ class TestPortfolioService:
             service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
             service.asset_service.handle_transaction.assert_called_once_with(transaction, cancel=False)
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_no_portfolio(self, service, mock):
         transaction = mock(portfolio_id=None, type='Buy')
 

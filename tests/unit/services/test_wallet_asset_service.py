@@ -3,21 +3,20 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
-import pytest_asyncio
 
 from app.core.exceptions import NotFoundError
 from app.schemas import WalletAssetDetailResponse
 from app.services.wallet_asset import WalletAssetService
 
 
-class TestWalletAssetService:
-    @pytest_asyncio.fixture
-    async def service(self, mock_db_session, mock_wallet_asset_repo):
-        service = WalletAssetService(mock_db_session)
-        service.repo = mock_wallet_asset_repo
-        return service
+@pytest.fixture
+async def service(mock_db_session, mock_wallet_asset_repo):
+    service = WalletAssetService(mock_db_session)
+    service.repo = mock_wallet_asset_repo
+    return service
 
-    @pytest.mark.asyncio
+
+class TestWalletAssetService:
     async def test_get_asset_detail_success(self, service, mock):
         transaction = mock(
             date=datetime.now(UTC),
@@ -46,7 +45,6 @@ class TestWalletAssetService:
             assert result.distribution == mock_distribution
             service.repo.get_by_id_and_user_with_details.assert_called_once_with(1, 1)
 
-    @pytest.mark.asyncio
     async def test_get_asset_detail_not_found(self, service):
         with (
             patch.object(service.repo, 'get_by_id_and_user_with_details', return_value=None),
@@ -54,7 +52,6 @@ class TestWalletAssetService:
         ):
             await service.get_asset_detail(999, 1)
 
-    @pytest.mark.asyncio
     async def test_calculate_wallet_distribution(self, service, mock):
         ticker_id = 'USD'
         user_id = 1
@@ -88,7 +85,6 @@ class TestWalletAssetService:
         assert wallet2_data['quantity'] == Decimal('3000.0')
         assert wallet2_data['percentage_of_total'] == 30.0
 
-    @pytest.mark.asyncio
     async def test_calculate_wallet_distribution_zero_quantity(self, service, mock):
         ticker_id = 'USD'
         user_id = 1
@@ -104,7 +100,6 @@ class TestWalletAssetService:
         assert result['total_quantity_all_wallets'] == Decimal('0.0')
         assert result['wallets'][0]['percentage_of_total'] == 0.0
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_trade_execution(self, service, mock):
         transaction = mock(
             ticker_id='BTC',
@@ -127,7 +122,6 @@ class TestWalletAssetService:
         assert asset1.quantity == Decimal('1.0')  # BTC добавлено
         assert asset2.quantity == Decimal('50000.0')  # USD потрачено (10000 - 1500)
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_trade_order(self, service, mock):
         transaction = mock(
             ticker_id='BTC',
@@ -166,7 +160,6 @@ class TestWalletAssetService:
 
         assert asset3.sell_orders == Decimal('-1.0')
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_earning(self, service, mock):
         transaction = mock(
             ticker_id='USD',
@@ -184,7 +177,6 @@ class TestWalletAssetService:
 
         assert asset.quantity == Decimal('1000.0')
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_transfer(self, service, mock):
         transaction = mock(quantity=Decimal('0.5'), type='TransferOut')
         transaction.get_direction.return_value = -1
@@ -200,7 +192,6 @@ class TestWalletAssetService:
         assert asset1.quantity == Decimal('1.5')  # 2 - 0.5
         assert asset2.quantity == Decimal('1.5')  # 1 + 0.5
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_transfer_no_wallet2(self, service, mock):
         transaction = mock(
             ticker_id='BTC',
@@ -214,7 +205,6 @@ class TestWalletAssetService:
 
         service.repo.get_or_create.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_input_output(self, service, mock):
         # Ввод
         transaction = mock(quantity=Decimal('5000.0'), type='Input')
@@ -243,7 +233,6 @@ class TestWalletAssetService:
 
         assert asset.quantity == Decimal('8000.0')  # 10000 - 2000
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_with_cancel(self, service, mock):
         # Arrange
         transaction = mock(
@@ -268,7 +257,6 @@ class TestWalletAssetService:
         assert asset1.quantity == Decimal('4.0')  # 5 - 1
         assert asset2.quantity == Decimal('120000.0')  # 5 - 1
 
-    @pytest.mark.asyncio
     async def test_get_assets_by_wallet_and_tickers(self, service, mock):
         wallet_id = 1
         ticker_ids = ['USD', 'EUR']
@@ -286,7 +274,6 @@ class TestWalletAssetService:
             assert len(result) == 2
             service.repo.get_many_by_tickers_and_wallet.assert_called_once_with(ticker_ids, wallet_id)
 
-    @pytest.mark.asyncio
     async def test_get_assets_by_wallet_and_tickers_empty(self, service):
         wallet_id = 1
         ticker_ids = []

@@ -1,17 +1,19 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from app.repositories.transaction import TransactionRepository
-from app.repositories.wallet import WalletRepository
-from app.repositories.wallet_asset import WalletAssetRepository
-from app.services.portfolio import PortfolioService
-from app.services.wallet import WalletService
-from app.services.wallet_asset import WalletAssetService
 import pytest
 
-from app.repositories import PortfolioRepository
-from app.repositories.portfolio_asset import AssetRepository
+from app.repositories import (
+    AssetRepository,
+    PortfolioRepository,
+    TransactionRepository,
+    WalletAssetRepository,
+    WalletRepository,
+)
+from app.services.portfolio import PortfolioService
 from app.services.portfolio_asset import PortfolioAssetService
+from app.services.wallet import WalletService
+from app.services.wallet_asset import WalletAssetService
 
 
 @pytest.fixture

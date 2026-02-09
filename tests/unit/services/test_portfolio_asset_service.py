@@ -3,21 +3,20 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
-import pytest_asyncio
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.schemas.portfolio_asset import PortfolioAssetResponse
 from app.services.portfolio_asset import PortfolioAssetService
 
 
-class TestPortfolioAssetService:
-    @pytest_asyncio.fixture
-    async def service(self, mock_db_session, mock_portfolio_asset_repo):
-        service = PortfolioAssetService(mock_db_session)
-        service.repo = mock_portfolio_asset_repo
-        return service
+@pytest.fixture
+async def service(mock_db_session, mock_portfolio_asset_repo):
+    service = PortfolioAssetService(mock_db_session)
+    service.repo = mock_portfolio_asset_repo
+    return service
 
-    @pytest.mark.asyncio
+
+class TestPortfolioAssetService:
     async def test_create_asset_success(self, service, mock, data):
         asset_data = data(ticker_id='AAPL', portfolio_id=1)
         asset = mock(id=1, ticker_id='AAPL', portfolio_id=1, quantity=Decimal(0))
@@ -34,7 +33,6 @@ class TestPortfolioAssetService:
             service.repo.create.assert_called_once()
             service.session.flush.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_create_asset_already_exists(self, service, mock, data):
         asset_data = data(ticker_id='AAPL', portfolio_id=1)
         existing_asset = mock(id=1, ticker_id='AAPL', portfolio_id=1)
@@ -45,7 +43,6 @@ class TestPortfolioAssetService:
         ):
             await service.create_asset(asset_data)
 
-    @pytest.mark.asyncio
     async def test_delete_asset_success(self, service):
         with (
             patch.object(service.repo, 'delete', return_value=True),
@@ -55,7 +52,6 @@ class TestPortfolioAssetService:
             assert result is True
             service.repo.delete.assert_called_once_with(1)
 
-    @pytest.mark.asyncio
     async def test_get_asset_detail_success(self, service, mock):
         transaction = mock(
             date=datetime.now(UTC),
@@ -84,7 +80,6 @@ class TestPortfolioAssetService:
             assert result.distribution == mock_distribution
             service.repo.get_by_id_and_user_with_details.assert_called_once_with(1, 1)
 
-    @pytest.mark.asyncio
     async def test_get_asset_detail_not_found(self, service):
         with (
             patch.object(service.repo, 'get_by_id_and_user_with_details', return_value=None),
@@ -93,7 +88,6 @@ class TestPortfolioAssetService:
             await service.get_asset_detail(999, 1)
 
 
-    @pytest.mark.asyncio
     async def test_calculate_portfolio_distribution(self, service, mock):
         ticker_id = 'AAPL'
         user_id = 1
@@ -128,7 +122,6 @@ class TestPortfolioAssetService:
         assert portfolio2_data['quantity'] == Decimal('5.0')
         assert portfolio2_data['percentage_of_total'] == 33.33
 
-    @pytest.mark.asyncio
     async def test_calculate_portfolio_distribution_zero_quantity(self, service, mock):
         ticker_id = 'AAPL'
         user_id = 1
@@ -144,7 +137,6 @@ class TestPortfolioAssetService:
         assert result['total_quantity_all_portfolios'] == 0.0
         assert result['portfolios'][0]['percentage_of_total'] == 0.0
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_trade_execution(self, service, mock):
         transaction = mock(
             ticker_id='AAPL',
@@ -170,7 +162,6 @@ class TestPortfolioAssetService:
         assert asset1.amount == Decimal(1500)  # 10 * 150
         assert asset2.quantity == Decimal(8500)  # USD потрачено (10000 - 1500)
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_trade_order(self, service, mock):
         transaction = mock(
             ticker_id='AAPL',
@@ -210,7 +201,6 @@ class TestPortfolioAssetService:
 
         assert asset3.sell_orders == Decimal('-10.0')
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_earning(self, service, mock):
         transaction = mock(
             ticker_id='USD',
@@ -228,7 +218,6 @@ class TestPortfolioAssetService:
 
         assert asset.quantity == Decimal('1000.0')
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_transfer(self, service, mock):
         transaction = mock(quantity=Decimal('1.0'), type='TransferOut')
         transaction.get_direction.return_value = -1
@@ -246,7 +235,6 @@ class TestPortfolioAssetService:
         assert asset2.quantity == Decimal('3.0')  # 2 + 1
         assert asset2.amount == Decimal('30000.0')  # 20000 + (50000/5*1)
 
-    @pytest.mark.asyncio
     async def test_handle_transaction_input_output(self, service, mock):
         # Ввод
         transaction = mock(quantity=Decimal('5000.0'), type='Input')
@@ -275,7 +263,6 @@ class TestPortfolioAssetService:
 
         assert asset.quantity == Decimal('12000.0')  # 10000 + 2000
 
-    @pytest.mark.asyncio
     async def test_get_assets_by_portfolio_and_tickers(self, service, mock):
         portfolio_id = 1
         ticker_ids = ['AAPL', 'GOOGL']
@@ -293,7 +280,6 @@ class TestPortfolioAssetService:
             assert len(result) == 2
             service.repo.get_many_by_tickers_and_portfolio.assert_called_once_with(ticker_ids, portfolio_id)
 
-    @pytest.mark.asyncio
     async def test_get_assets_by_portfolio_and_tickers_empty(self, service):
         portfolio_id = 1
         ticker_ids = []
