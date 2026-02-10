@@ -29,11 +29,11 @@ class Asset(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     ticker_id: Mapped[str] = mapped_column(String(256))
     portfolio_id: Mapped[int] = mapped_column(Integer, ForeignKey('portfolio.id'))
-    quantity: Mapped[Decimal] = mapped_column(Numeric, default=0.0)
-    buy_orders: Mapped[Decimal] = mapped_column(Numeric, default=0.0)
-    sell_orders: Mapped[Decimal] = mapped_column(Numeric, default=0.0)
-    amount: Mapped[Decimal] = mapped_column(Numeric, default=0.0)
-    percent: Mapped[Decimal] = mapped_column(Numeric, default=0.0)
+    quantity: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
+    buy_orders: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
+    sell_orders: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
+    amount: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
+    percent: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
     comment: Mapped[str | None] = mapped_column(String(1024))
 
     # Relationships
@@ -50,7 +50,7 @@ class Transaction(Base):
     __tablename__ = 'transaction'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    date: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(UTC))
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now(UTC))
     ticker_id: Mapped[str] = mapped_column(String(32))
     ticker2_id: Mapped[str | None] = mapped_column(String(32))
     quantity: Mapped[Decimal] = mapped_column(Numeric)
@@ -96,9 +96,9 @@ class WalletAsset(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ticker_id: Mapped[str] = mapped_column(String(256))
     wallet_id: Mapped[int] = mapped_column(ForeignKey('wallet.id'))
-    quantity: Mapped[Decimal] = mapped_column(Numeric, default=Decimal('0.0'))
-    buy_orders: Mapped[Decimal] = mapped_column(Numeric, default=Decimal('0.0'))
-    sell_orders: Mapped[Decimal] = mapped_column(Numeric, default=Decimal('0.0'))
+    quantity: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
+    buy_orders: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
+    sell_orders: Mapped[Decimal] = mapped_column(Numeric, default=Decimal(0))
 
     # Relationships
     wallet: Mapped['Wallet'] = relationship(back_populates='assets')
