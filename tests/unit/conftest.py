@@ -17,7 +17,7 @@ from app.services.wallet_asset import WalletAssetService
 
 
 @pytest.fixture
-def mock_db_session() -> AsyncMock:
+def db_session() -> AsyncMock:
     """Мок асинхронной сессии БД для unit-тестов."""
     session = AsyncMock()
 
@@ -37,69 +37,69 @@ def mock_db_session() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_portfolio_repo(mock_db_session) -> MagicMock:
+def portfolio_repo(db_session) -> MagicMock:
     repo = MagicMock(spec=PortfolioRepository)
-    repo.session = mock_db_session
+    repo.session = db_session
     return repo
 
 
 @pytest.fixture
-def mock_wallet_repo(mock_db_session) -> MagicMock:
+def wallet_repo(db_session) -> MagicMock:
     repo = MagicMock(spec=WalletRepository)
-    repo.session = mock_db_session
+    repo.session = db_session
     return repo
 
 
 @pytest.fixture
-def mock_portfolio_asset_repo(mock_db_session) -> MagicMock:
+def portfolio_asset_repo(db_session) -> MagicMock:
     repo = MagicMock(spec=AssetRepository)
-    repo.session = mock_db_session
+    repo.session = db_session
     return repo
 
 
 @pytest.fixture
-def mock_wallet_asset_repo(mock_db_session) -> MagicMock:
+def wallet_asset_repo(db_session) -> MagicMock:
     repo = MagicMock(spec=WalletAssetRepository)
-    repo.session = mock_db_session
+    repo.session = db_session
     return repo
 
 
 @pytest.fixture
-def mock_transaction_repo(mock_db_session) -> MagicMock:
+def transaction_repo(db_session) -> MagicMock:
     repo = MagicMock(spec=TransactionRepository)
-    repo.session = mock_db_session
+    repo.session = db_session
     return repo
 
 
 @pytest.fixture
-def mock_portfolio_service(mock_db_session, mock_portfolio_repo) -> MagicMock:
+def portfolio_service(db_session, portfolio_repo) -> MagicMock:
     service = MagicMock(spec=PortfolioService)
-    service.session = mock_db_session
-    service.repo = mock_portfolio_repo
+    service.session = db_session
+    service.repo = portfolio_repo
     return service
 
 
 @pytest.fixture
-def mock_wallet_service(mock_db_session, mock_wallet_repo) -> MagicMock:
+def wallet_service(db_session, wallet_repo) -> MagicMock:
     service = MagicMock(spec=WalletService)
-    service.session = mock_db_session
-    service.repo = mock_wallet_repo
+    service.session = db_session
+    service.repo = wallet_repo
     return service
 
 
 @pytest.fixture
-def mock_portfolio_asset_service(mock_db_session, mock_portfolio_asset_repo) -> MagicMock:
+def portfolio_asset_service(db_session, portfolio_asset_repo) -> MagicMock:
     service = MagicMock(spec=PortfolioAssetService)
-    service.session = mock_db_session
-    service.repo = mock_portfolio_asset_repo
+    service.session = db_session
+    service.repo = portfolio_asset_repo
     return service
 
 
 @pytest.fixture
-def mock_wallet_asset_service(mock_db_session, mock_wallet_asset_repo) -> MagicMock:
+def wallet_asset_service(db_session, wallet_asset_repo) -> MagicMock:
     service = MagicMock(spec=WalletAssetService)
-    service.session = mock_db_session
-    service.repo = mock_wallet_asset_repo
+    service.session = db_session
+    service.repo = wallet_asset_repo
     return service
 
 

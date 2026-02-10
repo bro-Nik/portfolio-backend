@@ -10,9 +10,9 @@ from app.services.portfolio_asset import PortfolioAssetService
 
 
 @pytest.fixture
-async def service(mock_db_session, mock_portfolio_asset_repo):
-    service = PortfolioAssetService(mock_db_session)
-    service.repo = mock_portfolio_asset_repo
+async def service(db_session, portfolio_asset_repo):
+    service = PortfolioAssetService(db_session)
+    service.repo = portfolio_asset_repo
     return service
 
 

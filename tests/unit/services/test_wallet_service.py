@@ -8,10 +8,10 @@ from app.services.wallet import WalletService
 
 
 @pytest.fixture
-async def service(mock_db_session, mock_wallet_repo, mock_wallet_asset_service):
-    service = WalletService(mock_db_session)
-    service.repo = mock_wallet_repo
-    service.asset_service = mock_wallet_asset_service
+async def service(db_session, wallet_repo, wallet_asset_service):
+    service = WalletService(db_session)
+    service.repo = wallet_repo
+    service.asset_service = wallet_asset_service
     return service
 
 
