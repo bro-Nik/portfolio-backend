@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.schemas.portfolio import PortfolioResponse
+from app.schemas import PortfolioResponse
 from app.services.portfolio import PortfolioService
 
 
@@ -37,7 +37,7 @@ class TestPortfolioService:
         portfolio = mock(id=1, name='Test', assets=[mock()])
 
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_assets', return_value=portfolio),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=portfolio),
             patch.object(PortfolioResponse, 'model_validate', return_value=portfolio),
         ):
             result = await service.get_portfolio(1, 1)
@@ -45,11 +45,11 @@ class TestPortfolioService:
             assert result.id == 1
             assert result.name == 'Test'
             assert len(result.assets) == 1
-            service.repo.get_by_id_and_user_with_assets.assert_called_once_with(1, 1)
+            service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
 
     async def test_get_portfolio_not_found(self, service):
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_assets', return_value=None),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
             await service.get_portfolio(999, 1)
@@ -61,8 +61,6 @@ class TestPortfolioService:
         with (
             patch.object(service.repo, 'exists_by_name_and_user', return_value=False),
             patch.object(service.repo, 'create', return_value=portfolio),
-            patch.object(service.repo, 'get_by_id_and_user_with_assets', return_value=portfolio),
-            patch.object(PortfolioResponse, 'model_validate', return_value=portfolio),
         ):
             result = await service.create_portfolio(1, portfolio_data)
 

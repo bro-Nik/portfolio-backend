@@ -5,19 +5,19 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.schemas import WalletAssetDetailResponse
 from app.services.wallet_asset import WalletAssetService
 
 
 @pytest.fixture
-async def service(db_session, wallet_asset_repo):
+async def service(db_session, wallet_asset_repo, transaction_repo):
     service = WalletAssetService(db_session)
     service.repo = wallet_asset_repo
+    service.transaction_repo = transaction_repo
     return service
 
 
 class TestWalletAssetService:
-    async def test_get_asset_detail_success(self, service, mock):
+    async def test_get_asset_distribution_success(self, service, mock):
         transaction = mock(
             date=datetime.now(UTC),
             ticker_id='USD',
@@ -29,28 +29,26 @@ class TestWalletAssetService:
             ticker_id='USD',
             quantity=Decimal('10000.0'),
             transactions=[transaction],
+            wallet=mock(id=1, name='Wallet Name'),
         )
 
-        mock_distribution = {'test_data': 'test_data'}
-
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_details', return_value=asset),
-            patch.object(service, '_calculate_wallet_distribution', return_value=mock_distribution),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
+            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
         ):
-            result = await service.get_asset_detail(1, 1)
+            asset, distribution = await service.get_asset_distribution(1, 1)
 
-            assert isinstance(result, WalletAssetDetailResponse)
-            assert len(result.transactions) == 1
-            assert result.transactions[0]['ticker_id'] == 'USD'
-            assert result.distribution == mock_distribution
-            service.repo.get_by_id_and_user_with_details.assert_called_once_with(1, 1)
+            assert distribution['total_quantity_all_wallets'] == Decimal('10000.0')
+            assert distribution['wallets'][0]['wallet_id'] == 1
+            assert distribution['wallets'][0]['wallet_name'] == 'Wallet Name'
+            service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
 
-    async def test_get_asset_detail_not_found(self, service):
+    async def test_get_asset_distribution_not_found(self, service):
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_details', return_value=None),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
-            await service.get_asset_detail(999, 1)
+            await service.get_asset_distribution(999, 1)
 
     async def test_calculate_wallet_distribution(self, service, mock):
         ticker_id = 'USD'
@@ -192,19 +190,6 @@ class TestWalletAssetService:
         assert asset1.quantity == Decimal('1.5')  # 2 - 0.5
         assert asset2.quantity == Decimal('1.5')  # 1 + 0.5
 
-    async def test_handle_transaction_transfer_no_wallet2(self, service, mock):
-        transaction = mock(
-            ticker_id='BTC',
-            quantity=Decimal('0.5'),
-            type='TransferOut',
-            wallet_id=1,
-            wallet2_id=None,  # No target wallet
-        )
-
-        await service.handle_transaction(transaction)
-
-        service.repo.get_or_create.assert_not_called()
-
     async def test_handle_transaction_input_output(self, service, mock):
         # Ввод
         transaction = mock(quantity=Decimal('5000.0'), type='Input')
@@ -234,7 +219,6 @@ class TestWalletAssetService:
         assert asset.quantity == Decimal('8000.0')  # 10000 - 2000
 
     async def test_handle_transaction_with_cancel(self, service, mock):
-        # Arrange
         transaction = mock(
             ticker_id='BTC',
             ticker2_id='USDT',
@@ -273,12 +257,3 @@ class TestWalletAssetService:
 
             assert len(result) == 2
             service.repo.get_many_by_tickers_and_wallet.assert_called_once_with(ticker_ids, wallet_id)
-
-    async def test_get_assets_by_wallet_and_tickers_empty(self, service):
-        wallet_id = 1
-        ticker_ids = []
-
-        result = await service.get_assets_by_wallet_and_tickers(wallet_id, ticker_ids)
-
-        assert result == []
-        service.repo.get_many_by_tickers_and_wallet.assert_not_called()

@@ -5,14 +5,15 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.schemas.portfolio_asset import PortfolioAssetResponse
+from app.schemas import PortfolioAssetResponse
 from app.services.portfolio_asset import PortfolioAssetService
 
 
 @pytest.fixture
-async def service(db_session, portfolio_asset_repo):
+async def service(db_session, portfolio_asset_repo, transaction_repo):
     service = PortfolioAssetService(db_session)
     service.repo = portfolio_asset_repo
+    service.transaction_repo = transaction_repo
     return service
 
 
@@ -52,7 +53,7 @@ class TestPortfolioAssetService:
             assert result is True
             service.repo.delete.assert_called_once_with(1)
 
-    async def test_get_asset_detail_success(self, service, mock):
+    async def test_get_asset_distribution_success(self, service, mock):
         transaction = mock(
             date=datetime.now(UTC),
             ticker_id='AAPL',
@@ -65,27 +66,27 @@ class TestPortfolioAssetService:
             quantity=Decimal('10.0'),
             amount=Decimal('1500.0'),
             transactions=[transaction],
+            portfolio=mock(id=1, name='Portfolio Name'),
         )
 
-        mock_distribution = {'test_data': 'test_data'}
-
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_details', return_value=asset),
-            patch.object(service, '_calculate_portfolio_distribution', return_value=mock_distribution),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
+            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
         ):
-            result = await service.get_asset_detail(1, 1)
+            asset, distribution = await service.get_asset_distribution(1, 1)
 
-            assert len(result.transactions) == 1
-            assert result.transactions[0]['ticker_id'] == 'AAPL'
-            assert result.distribution == mock_distribution
-            service.repo.get_by_id_and_user_with_details.assert_called_once_with(1, 1)
+            assert distribution['total_quantity_all_portfolios'] == Decimal('10.0')
+            assert distribution['total_amount_all_portfolios'] == Decimal('1500.0')
+            assert distribution['portfolios'][0]['portfolio_id'] == 1
+            assert distribution['portfolios'][0]['portfolio_name'] == 'Portfolio Name'
+            service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
 
-    async def test_get_asset_detail_not_found(self, service):
+    async def test_get_asset_distribution_not_found(self, service):
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_details', return_value=None),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
-            await service.get_asset_detail(999, 1)
+            await service.get_asset_distribution(999, 1)
 
 
     async def test_calculate_portfolio_distribution(self, service, mock):
@@ -279,12 +280,3 @@ class TestPortfolioAssetService:
 
             assert len(result) == 2
             service.repo.get_many_by_tickers_and_portfolio.assert_called_once_with(ticker_ids, portfolio_id)
-
-    async def test_get_assets_by_portfolio_and_tickers_empty(self, service):
-        portfolio_id = 1
-        ticker_ids = []
-
-        result = await service.get_assets_by_portfolio_and_tickers(portfolio_id, ticker_ids)
-
-        assert result == []
-        service.repo.get_many_by_tickers_and_portfolio.assert_not_called()

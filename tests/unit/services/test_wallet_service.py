@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.schemas.wallet import WalletResponse
+from app.schemas import WalletResponse
 from app.services.wallet import WalletService
 
 
@@ -37,7 +37,7 @@ class TestWalletService:
         wallet = mock(id=1, name='Test', assets=[mock()])
 
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_assets', return_value=wallet),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=wallet),
             patch.object(WalletResponse, 'model_validate', return_value=wallet),
         ):
             result = await service.get_wallet(1, 1)
@@ -45,11 +45,11 @@ class TestWalletService:
             assert result.id == 1
             assert result.name == 'Test'
             assert len(result.assets) == 1
-            service.repo.get_by_id_and_user_with_assets.assert_called_once_with(1, 1)
+            service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
 
     async def test_get_wallet_not_found(self, service):
         with (
-            patch.object(service.repo, 'get_by_id_and_user_with_assets', return_value=None),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
             await service.get_wallet(999, 1)
@@ -61,8 +61,6 @@ class TestWalletService:
         with (
             patch.object(service.repo, 'exists_by_name_and_user', return_value=False),
             patch.object(service.repo, 'create', return_value=wallet),
-            patch.object(service.repo, 'get_by_id_and_user_with_assets', return_value=wallet),
-            patch.object(WalletResponse, 'model_validate', return_value=wallet),
         ):
             result = await service.create_wallet(1, wallet_data)
 
@@ -94,7 +92,7 @@ class TestWalletService:
             result = await service.update_wallet(1, 1, wallet_data)
 
             assert result.name == 'Updated Name'
-            service.repo.get_by_id_and_user_with_assets.assert_called_with(1, 1)
+            service.repo.get_by_id_and_user.assert_called_with(1, 1)
             service.repo.exists_by_name_and_user.assert_called_once_with('Updated Name', 1)
 
     async def test_delete_wallet_success(self, service, mock):
@@ -148,8 +146,8 @@ class TestWalletService:
             assert service.repo.get_by_id_and_user.call_count == 2
             service.asset_service.handle_transaction.assert_called_once_with(transaction, cancel=False)
 
-    async def test_handle_transaction_transfer_no_wallet2(self, service, mock):
-        transaction = mock(wallet_id=1, wallet2_id=None, type='TransferOut')
+    async def test_handle_transaction_transfer_no_wallet(self, service, mock):
+        transaction = mock(wallet_id=None, type='TransferOut')
 
         await service.handle_transaction(1, transaction)
 
