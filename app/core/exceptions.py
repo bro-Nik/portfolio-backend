@@ -30,6 +30,8 @@ def service_exception_handler(
                 raise NotFoundException(str(e)) from e
             except ConflictError as e:
                 raise ConflictException(str(e)) from e
+            except ValidationError as e:
+                raise ValidationException(str(e)) from e
             except PydanticValidationError as e:
                 # Сбор всех ошибок валидации в одну строку
                 errors = [err['msg'] for err in e.errors()]
@@ -96,7 +98,7 @@ class ValidationException(HTTPException):
 
     def __init__(self, detail: str = 'Ошибка валидации') -> None:
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=detail,
         )
 
