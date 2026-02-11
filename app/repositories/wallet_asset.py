@@ -44,9 +44,6 @@ class WalletAssetRepository(BaseRepository[WalletAsset, WalletAssetCreate, Walle
         wallet_id: int,
     ) -> list[WalletAsset]:
         """Получить активы кошелька по списку тикеров."""
-        if not ticker_ids:
-            return []
-
         return await self.get_many_by(
             WalletAsset.wallet_id == wallet_id,
             WalletAsset.ticker_id.in_(ticker_ids),

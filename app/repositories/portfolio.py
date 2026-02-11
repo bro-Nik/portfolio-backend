@@ -27,12 +27,11 @@ class PortfolioRepository(BaseRepository[Portfolio, PortfolioCreate, PortfolioUp
             relations=('assets',) if include_assets else (),
         )
 
-    async def get_by_id_and_user_with_assets(self, portfolio_id: int, user_id: int) -> Portfolio | None:
-        """Получить портфель пользователя с активами."""
+    async def get_by_id_and_user(self, portfolio_id: int, user_id: int) -> Portfolio | None:
+        """Получить портфель пользователя."""
         return await self.get_by(
             Portfolio.id == portfolio_id,
             Portfolio.user_id == user_id,
-            relations=('assets',),
         )
 
     async def exists_by_name_and_user(self, name: str, user_id: int) -> bool:

@@ -63,6 +63,7 @@ class WalletAssetService:
             self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id),
             self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker2_id),
         )
+        await self.session.flush()
 
         handler = self._handle_trade_order if t.order else self._handle_trade_execution
         handler(asset1, t, direction, is_primary=True)
@@ -106,6 +107,7 @@ class WalletAssetService:
     async def _handle_earning(self, t: Transaction, direction: int) -> None:
         """Обработка заработка."""
         asset = await self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id)
+        await self.session.flush()
         asset.quantity += t.quantity * direction
 
     async def _handle_transfer(self, t: Transaction, direction: int) -> None:
@@ -117,6 +119,7 @@ class WalletAssetService:
             self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id),
             self.repo.get_or_create(wallet_id=t.wallet2_id, ticker_id=t.ticker2_id),
         )
+        await self.session.flush()
 
         quantity = t.quantity * direction
         asset1.quantity += quantity
@@ -125,6 +128,7 @@ class WalletAssetService:
     async def _handle_input_output(self, t: Transaction, direction: int) -> None:
         """Обработка ввода-вывода."""
         asset = await self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id)
+        await self.session.flush()
         asset.quantity += t.quantity * direction
 
     async def get_assets_by_wallet_and_tickers(

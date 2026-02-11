@@ -44,9 +44,6 @@ class AssetRepository(BaseRepository[Asset, PortfolioAssetCreate, PortfolioAsset
         portfolio_id: int,
     ) -> list[Asset]:
         """Получить активы портфеля по списку тикеров."""
-        if not ticker_ids:
-            return []
-
         return await self.get_many_by(
             Asset.portfolio_id == portfolio_id,
             Asset.ticker_id.in_(ticker_ids),

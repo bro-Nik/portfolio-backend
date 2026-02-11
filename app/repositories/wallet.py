@@ -27,12 +27,11 @@ class WalletRepository(BaseRepository[Wallet, WalletCreate, WalletUpdate]):
             relations=('assets',) if include_assets else (),
         )
 
-    async def get_by_id_and_user_with_assets(self, wallet_id: int, user_id: int) -> Wallet | None:
-        """Получить кошелек пользователя с активами."""
+    async def get_by_id_and_user(self, wallet_id: int, user_id: int) -> Wallet | None:
+        """Получить кошелек пользователя."""
         return await self.get_by(
             Wallet.id == wallet_id,
             Wallet.user_id == user_id,
-            relations=('assets',),
         )
 
     async def exists_by_name_and_user(self, name: str, user_id: int) -> bool:
