@@ -26,6 +26,8 @@ class TransactionBase(BaseModel):
 class TransactionResponse(TransactionBase):
     """Ответ с данными транзакции."""
 
+    id: int
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -49,7 +51,7 @@ class TransactionUpdate(TransactionBase):
 
 
 class TransactionResponseWithAssets(BaseModel):
-    """Ответ с детальными данными транзакции и затронутых активов."""
+    """Ответ с детальными данными транзакции и обновленными затронутыми активами."""
 
     success: bool = True
     message: str | None = None

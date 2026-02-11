@@ -1,0 +1,29 @@
+services:
+  backend-db:
+    extends:
+      file: docker-compose.base.yml
+      service: backend-db
+    container_name: backend-db-dev
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+
+  backend:
+    extends:
+      file: docker-compose.base.yml
+      service: backend
+    container_name: backend-dev
+    ports:
+      - "${SERVICE_PORT:-8000}:${SERVICE_PORT:-8000}"
+    volumes:
+      - ./app:/app/app
+    networks:
+      - backend-net
+
+networks:
+  backend-net:
+    driver: bridge
+
+volumes:
+  db_data:

@@ -1,0 +1,81 @@
+# Основные настройки Ruff
+[tool.ruff]
+# Выбрать все проверки
+select = ["ALL"]
+# Длина строки
+line-length = 100
+# Целевая версия Python
+target-version = "py313"
+
+# Игнорируемые правила
+ignore = [
+    # Игнорировать проверку кириллических символов
+    "RUF001", "RUF002", "RUF003",
+    
+    # Игнорировать docstring для методов __init__ и модулей
+    "D107",  # Отсутствие docstring в __init__
+    "D100",  # Отсутствие docstring в public module
+    "D104",  # Отсутствие docstring в public package
+    
+    # Игнорировать строгие проверки для обработки ошибок
+    "EM101", "EM102",  # Слишком широкие/узкие исключения
+    "TRY003",         # Неправильный тип исключения
+    
+    # Игнорировать строгие проверки для TODO комментариев
+    "TD002", "TD003",
+]
+
+# Настройки форматирования
+[tool.ruff.format]
+quote-style = "single"
+
+# Настройки линтеров
+[tool.ruff.lint]
+
+# Настройки кавычек (flake8-quotes)
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"      # Одинарные кавычки для inline строк
+multiline-quotes = "double"   # Двойные кавычки для многострочных строк
+docstring-quotes = "double"   # Двойные кавычки для docstring
+
+# Настройки сортировки импортов (isort)
+[tool.ruff.lint.isort]
+known-first-party = ["app"]           # Известные first-party модули
+lines-between-types = 1               # Пустые строки между типами импортов
+combine-as-imports = true             # Объединять as-импорты
+force-sort-within-sections = true     # Сортировка внутри секций
+
+# Игнорирование по файлам
+[tool.ruff.lint.per-file-ignores]
+# Игнорировать неиспользуемые импорты в __init__.py файлах
+"__init__.py" = ["F401"]
+# Игнорировать максимальное количество аргументов для роутов
+"**/endpoints/**/*.py" = ["PLR0913"]
+# Правила в тестах
+"tests/**/*.py" = ["S101", "ANN201", "ANN001", "ANN202", "ANN003", "S105", "S106", "PLR2004", "SLF001", "D101", "D102", "D103"]
+
+# Переопределение настроек для тестовых файлов
+[tool.ruff.extend-per-file-ignores]
+"tests/**/*.py" = ["E501"]  # Не проверять длину строки
+
+# Настройки Pyright (если используется)
+[tool.pyright]
+reportMissingImports = false
+reportMissingModuleSource = false
+include = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+addopts = [
+    "--cov=app",
+    "--cov-report=html:reports/coverage-html",
+    "--cov-report=xml:reports/coverage.xml",
+    "--junitxml=reports/junit.xml",
+
+]

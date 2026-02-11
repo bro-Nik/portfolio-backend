@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Wallet, WalletAsset
@@ -20,18 +21,21 @@ class WalletAssetRepository(BaseRepository[WalletAsset, WalletAssetCreate, Walle
 
     async def get_many_by_ticker_and_user(self, ticker_id: str, user_id: int) -> list[WalletAsset]:
         """Получить активы пользователя по тикеру."""
+        wallet_subq = select(Wallet.id).where(Wallet.user_id == user_id).scalar_subquery()
+
         return await self.get_many_by(
             WalletAsset.ticker_id == ticker_id,
-            Wallet.user_id == user_id,
+            WalletAsset.wallet_id.in_(wallet_subq),
             relations=('wallet',),
         )
 
-    async def get_by_id_and_user_with_details(self, asset_id: int, user_id: int) -> WalletAsset | None:
-        """Получить актив пользователя с кошельком и транзакциями."""
+    async def get_by_id_and_user(self, asset_id: int, user_id: int) -> WalletAsset | None:
+        """Получить актив пользователя по ID."""
+        wallet_subq = select(Wallet.id).where(Wallet.user_id == user_id).scalar_subquery()
+
         return await self.get_by(
             WalletAsset.id == asset_id,
-            Wallet.user_id == user_id,
-            relations=('wallet', 'transactions'),
+            WalletAsset.wallet_id.in_(wallet_subq),
         )
 
     async def get_many_by_tickers_and_wallet(
@@ -40,9 +44,6 @@ class WalletAssetRepository(BaseRepository[WalletAsset, WalletAssetCreate, Walle
         wallet_id: int,
     ) -> list[WalletAsset]:
         """Получить активы кошелька по списку тикеров."""
-        if not ticker_ids:
-            return []
-
         return await self.get_many_by(
             WalletAsset.wallet_id == wallet_id,
             WalletAsset.ticker_id.in_(ticker_ids),

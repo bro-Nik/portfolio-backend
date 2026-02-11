@@ -4,11 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models import Asset, Transaction
-from app.repositories import AssetRepository
+from app.repositories import AssetRepository, TransactionRepository
 from app.schemas import (
     PortfolioAssetCreate,
     PortfolioAssetCreateRequest,
-    PortfolioAssetDetailResponse,
     PortfolioAssetResponse,
 )
 
@@ -19,6 +18,7 @@ class PortfolioAssetService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repo = AssetRepository(session)
+        self.transaction_repo = TransactionRepository(session)
 
     async def create_asset(self, asset_data: PortfolioAssetCreateRequest) -> PortfolioAssetResponse:
         """Создать актив для портфелья."""
@@ -53,6 +53,7 @@ class PortfolioAssetService:
             self.repo.get_or_create(portfolio_id=t.portfolio_id, ticker_id=t.ticker_id),
             self.repo.get_or_create(portfolio_id=t.portfolio_id, ticker_id=t.ticker2_id),
         )
+        await self.session.flush()
 
         handler = self._handle_trade_order if t.order else self._handle_trade_execution
         handler(asset1, t, direction, is_primary=True)
@@ -98,18 +99,21 @@ class PortfolioAssetService:
     async def _handle_earning(self, t: Transaction, direction: int) -> None:
         """Обработка заработка."""
         asset = await self.repo.get_or_create(portfolio_id=t.portfolio_id, ticker_id=t.ticker_id)
+        await self.session.flush()
         asset.quantity += t.quantity * direction
 
     async def _handle_transfer(self, t: Transaction, direction: int) -> None:
         """Обработка перевода между портфелями."""
         asset1, asset2 = await asyncio.gather(
             self.repo.get_or_create(portfolio_id=t.portfolio_id, ticker_id=t.ticker_id),
-            self.repo.get_or_create(portfolio_id=t.portfolio2_id, ticker_id=t.ticker2_id),
+            self.repo.get_or_create(portfolio_id=t.portfolio2_id, ticker_id=t.ticker_id),
         )
+        await self.session.flush()
 
-        amount = asset1.amount / asset1.quantity * t.quantity * direction
-        asset1.amount += amount
-        asset2.amount -= amount
+        if asset1.quantity and t.quantity:
+            amount = asset1.amount / asset1.quantity * t.quantity * direction
+            asset1.amount += amount
+            asset2.amount -= amount
 
         quantity = t.quantity * direction
         asset1.quantity += quantity
@@ -118,45 +122,23 @@ class PortfolioAssetService:
     async def _handle_input_output(self, t: Transaction, direction: int) -> None:
         """Обработка ввода-вывода."""
         asset = await self.repo.get_or_create(portfolio_id=t.portfolio_id, ticker_id=t.ticker_id)
+        await self.session.flush()
         asset.quantity += t.quantity * direction
 
-    async def get_asset_detail(self, asset_id: int, user_id: int) -> PortfolioAssetDetailResponse:
-        """Получение детальной информации об активе."""
-        # Загружаем актив с тикером и портфелем
-        asset = await self.repo.get_by_id_and_user_with_details(asset_id, user_id)
-
+    async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> Asset:
+        """Получить актив пользователя."""
+        asset = await self.repo.get_by_id_and_user(asset_id, user_id)
         if not asset:
             raise NotFoundError(f'Актив id={asset_id} не найден')
+        return asset
 
-        # Подготовка транзакций
-        transactions = [
-            {
-                'id': transaction.id,
-                'order': transaction.order,
-                'portfolio_id': transaction.portfolio_id,
-                'portfolio2_id': transaction.portfolio2_id,
-                'wallet_id': transaction.wallet_id,
-                'wallet2_id': transaction.wallet2_id,
-                'date': transaction.date,
-                'ticker_id': transaction.ticker_id,
-                'ticker2_id': transaction.ticker2_id,
-                'quantity': transaction.quantity,
-                'quantity2': transaction.quantity2,
-                'price': transaction.price,
-                'price_usd': transaction.price_usd,
-                'type': transaction.type,
-                'comment': transaction.comment,
-            }
-            for transaction in asset.transactions
-        ]
+    async def get_asset_distribution(self, asset_id: int, user_id: int) -> tuple[Asset, dict]:
+        """Получение информации об распределении актива."""
+        asset = await self._get_asset_or_raise(asset_id, user_id)
 
         # Расчет распределения по портфелям
         distribution = await self._calculate_portfolio_distribution(asset.ticker_id, user_id)
-
-        return PortfolioAssetDetailResponse(
-            transactions=transactions,
-            distribution=distribution,
-        )
+        return asset, distribution
 
     async def _calculate_portfolio_distribution(self, ticker_id: str, user_id: int) -> dict:
         """Расчет распределения актива по портфелям."""
@@ -173,7 +155,7 @@ class PortfolioAssetService:
                 'portfolio_name': asset.portfolio.name,
                 'quantity': asset.quantity,
                 'amount': asset.amount,
-                'percentage_of_total': percentage,
+                'percentage_of_total': round(float(percentage), 2),
             })
 
         return {
@@ -188,13 +170,10 @@ class PortfolioAssetService:
         ticker_ids: list[str],
     ) -> list[Asset]:
         """Получить активы портфеля по тикерам."""
-        if not ticker_ids:
-            return []
-
         return await self.repo.get_many_by_tickers_and_portfolio(ticker_ids, portfolio_id)
 
     async def _validate_create_data(self, data: PortfolioAssetCreateRequest) -> None:
-        """Валидация данных для создания портфеля."""
+        """Валидация данных для создания актива."""
         # Проверка, что актив еще не добавлен
         if await self.repo.get_by_ticker_and_portfolio(data.ticker_id, data.portfolio_id):
             raise ConflictError('Этот актив уже добавлен в портфель')

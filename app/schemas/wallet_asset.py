@@ -31,7 +31,7 @@ class WalletAssetResponse(WalletAssetBase):
 class WalletAssetDetailResponse(BaseModel):
     """Ответ с детальными данными актива."""
 
-    transactions: list[dict]
+    transactions: list['TransactionResponse']
     distribution: dict
 
 

@@ -2,7 +2,6 @@
 # pyright: reportAttributeAccessIssue=false
 
 # TODO: Логирование
-# TODO: Кэширование
 
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, TypeVar
@@ -279,7 +278,6 @@ class BaseRepository[Model, CreateSchema: BaseModel, UpdateSchema: BaseModel]:
 
         obj = self.model(**create_data)
         self.session.add(obj)
-        await self.session.flush()
         return obj
 
     async def exists(self, id: Id) -> bool:

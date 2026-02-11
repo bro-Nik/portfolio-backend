@@ -4,8 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.models import Transaction, WalletAsset
-from app.repositories import WalletAssetRepository
-from app.schemas import WalletAssetDetailResponse
+from app.repositories import TransactionRepository, WalletAssetRepository
 
 
 class WalletAssetService:
@@ -14,44 +13,15 @@ class WalletAssetService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repo = WalletAssetRepository(session)
+        self.transaction_repo = TransactionRepository(session)
 
-    async def get_asset_detail(self, asset_id: int, user_id: int) -> WalletAssetDetailResponse:
-        """Получение детальной информации об активе."""
-        # Загружаем актив с тикером и кошельком
-        asset = await self.repo.get_by_id_and_user_with_details(asset_id, user_id)
-
-        if not asset:
-            raise NotFoundError(f'Актив id={asset_id} не найден')
-
-        # Подготовка транзакций
-        transactions = [
-            {
-                'id': transaction.id,
-                'order': transaction.order,
-                'portfolio_id': transaction.portfolio_id,
-                'portfolio2_id': transaction.portfolio2_id,
-                'wallet_id': transaction.wallet_id,
-                'wallet2_id': transaction.wallet2_id,
-                'date': transaction.date,
-                'ticker_id': transaction.ticker_id,
-                'ticker2_id': transaction.ticker2_id,
-                'quantity': transaction.quantity,
-                'quantity2': transaction.quantity2,
-                'price': transaction.price,
-                'price_usd': transaction.price_usd,
-                'type': transaction.type,
-                'comment': transaction.comment,
-            }
-            for transaction in asset.transactions
-        ]
+    async def get_asset_distribution(self, asset_id: int, user_id: int) -> tuple[WalletAsset, dict]:
+        """Получение информации об распределении актива."""
+        asset = await self._get_asset_or_raise(asset_id, user_id)
 
         # Расчет распределения по кошелькам
         distribution = await self._calculate_wallet_distribution(asset.ticker_id, user_id)
-
-        return WalletAssetDetailResponse(
-            transactions=transactions,
-            distribution=distribution,
-        )
+        return asset, distribution
 
     async def _calculate_wallet_distribution(self, ticker_id: str, user_id: int) -> dict:
         """Расчет распределения актива по портфелям."""
@@ -93,6 +63,7 @@ class WalletAssetService:
             self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id),
             self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker2_id),
         )
+        await self.session.flush()
 
         handler = self._handle_trade_order if t.order else self._handle_trade_execution
         handler(asset1, t, direction, is_primary=True)
@@ -136,17 +107,16 @@ class WalletAssetService:
     async def _handle_earning(self, t: Transaction, direction: int) -> None:
         """Обработка заработка."""
         asset = await self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id)
+        await self.session.flush()
         asset.quantity += t.quantity * direction
 
     async def _handle_transfer(self, t: Transaction, direction: int) -> None:
         """Обработка перевода между кошельками."""
-        if not (t.wallet_id and t.wallet2_id):
-            return
-
         asset1, asset2 = await asyncio.gather(
             self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id),
-            self.repo.get_or_create(wallet_id=t.wallet2_id, ticker_id=t.ticker2_id),
+            self.repo.get_or_create(wallet_id=t.wallet2_id, ticker_id=t.ticker_id),
         )
+        await self.session.flush()
 
         quantity = t.quantity * direction
         asset1.quantity += quantity
@@ -155,6 +125,7 @@ class WalletAssetService:
     async def _handle_input_output(self, t: Transaction, direction: int) -> None:
         """Обработка ввода-вывода."""
         asset = await self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id)
+        await self.session.flush()
         asset.quantity += t.quantity * direction
 
     async def get_assets_by_wallet_and_tickers(
@@ -163,7 +134,11 @@ class WalletAssetService:
         ticker_ids: list[str],
     ) -> list[WalletAsset]:
         """Получить активы кошелька по тикерам."""
-        if not ticker_ids:
-            return []
-
         return await self.repo.get_many_by_tickers_and_wallet(ticker_ids, wallet_id)
+
+    async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> WalletAsset:
+        """Получить актив пользователя."""
+        asset = await self.repo.get_by_id_and_user(asset_id, user_id)
+        if not asset:
+            raise NotFoundError(f'Актив id={asset_id} не найден')
+        return asset

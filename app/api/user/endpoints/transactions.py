@@ -8,7 +8,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
@@ -23,18 +23,19 @@ router = APIRouter(prefix='/transactions', tags=['Transactions'])
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании транзакции')
 async def create_transaction(
+    request: Request,
     transaction_data: TransactionCreateRequest,
     user: Annotated[User, Depends(get_current_user)],
-    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
+    service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Создание новой транзакции."""
-    transaction = await transaction_service.create_transaction(user.id, transaction_data)
+    transaction = await service.create_transaction(user.id, transaction_data)
 
     return TransactionResponseWithAssets(
         message='Транзакция успешно создана',
-        # Измененные активы на основе созданной транзакции
-        portfolio_assets=await transaction_service.get_affected_portfolio_assets((transaction,)),
-        wallet_assets=await transaction_service.get_affected_wallet_assets((transaction,)),
+        transaction=transaction,
+        portfolio_assets=await service.get_affected_portfolio_assets((transaction,)),
+        wallet_assets=await service.get_affected_wallet_assets((transaction,)),
     )
 
 
@@ -42,20 +43,22 @@ async def create_transaction(
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при изменении транзакции')
 async def update_transaction(
+    request: Request,
     transaction_id: int,
     transaction_data: TransactionCreateRequest,
     user: Annotated[User, Depends(get_current_user)],
-    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
+    service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Изменение транзакции."""
     # Новая и старая транзакция
-    transactions = await transaction_service.update_transaction(user.id, transaction_id, transaction_data)
+    transactions = await service.update_transaction(user.id, transaction_id, transaction_data)
+    updated_transaction = transactions[1]
 
     return TransactionResponseWithAssets(
         message='Транзакция успешно изменена',
-        # Измененные активы на основе измененной транзакции
-        portfolio_assets=await transaction_service.get_affected_portfolio_assets(transactions),
-        wallet_assets=await transaction_service.get_affected_wallet_assets(transactions),
+        transaction=updated_transaction,
+        portfolio_assets=await service.get_affected_portfolio_assets(transactions),
+        wallet_assets=await service.get_affected_wallet_assets(transactions),
     )
 
 
@@ -63,16 +66,16 @@ async def update_transaction(
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при удалении транзакции')
 async def delete_transaction(
+    request: Request,
     transaction_id: int,
     user: Annotated[User, Depends(get_current_user)],
-    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
+    service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Удаление транзакции."""
-    transaction = await transaction_service.delete_transaction(user.id, transaction_id)
+    transaction = await service.delete_transaction(user.id, transaction_id)
 
     return TransactionResponseWithAssets(
         message='Транзакция успешно удалена',
-        # Измененные активы на основе удаленной транзакции
-        portfolio_assets=await transaction_service.get_affected_portfolio_assets((transaction,)),
-        wallet_assets=await transaction_service.get_affected_wallet_assets((transaction,)),
+        portfolio_assets=await service.get_affected_portfolio_assets((transaction,)),
+        wallet_assets=await service.get_affected_wallet_assets((transaction,)),
     )

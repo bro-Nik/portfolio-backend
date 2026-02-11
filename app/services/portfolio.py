@@ -2,7 +2,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictException, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models import Portfolio, Transaction
 from app.repositories import PortfolioRepository
 from app.schemas import (
@@ -30,12 +30,18 @@ class PortfolioService:
 
     async def get_portfolio(self, portfolio_id: int, user_id: int) -> PortfolioResponse:
         """Получить портфель пользователя."""
-        portfolio = await self.repo.get_by_id_and_user_with_assets(portfolio_id, user_id)
+        portfolio = await self._get_portfolio_or_raise(portfolio_id, user_id)
+        await self.session.refresh(portfolio, ['assets'])
+        return PortfolioResponse.model_validate(portfolio)
+
+    async def _get_portfolio_or_raise(self, portfolio_id: int, user_id: int) -> Portfolio:
+        """Получить портфель пользователя."""
+        portfolio = await self.repo.get_by_id_and_user(portfolio_id, user_id)
 
         if not portfolio:
             raise NotFoundError(f'Портфель id={portfolio_id} не найден')
 
-        return PortfolioResponse.model_validate(portfolio)
+        return portfolio
 
     async def create_portfolio(
         self,
@@ -52,7 +58,8 @@ class PortfolioService:
 
         portfolio = await self.repo.create(portfolio_to_db)
         await self.session.flush()
-        return await self.get_portfolio(portfolio.id, user_id)  # Портфель с активами
+        await self.session.refresh(portfolio, ['assets'])
+        return portfolio
 
     async def update_portfolio(
         self,
@@ -61,17 +68,18 @@ class PortfolioService:
         portfolio_data: PortfolioUpdateRequest,
     ) -> PortfolioResponse:
         """Обновить портфель пользователя."""
-        portfolio = await self.get_portfolio(portfolio_id, user_id)
+        portfolio = await self._get_portfolio_or_raise(portfolio_id, user_id)
         await self._validate_update_data(portfolio_data, user_id, portfolio)
 
         portfolio_to_db = PortfolioUpdate(**portfolio_data.model_dump())
 
         portfolio = await self.repo.update(portfolio_id, portfolio_to_db)
-        return await self.get_portfolio(portfolio_id, user_id)  # Портфель с активами
+        await self.session.refresh(portfolio, ['assets'])
+        return portfolio
 
     async def delete_portfolio(self, portfolio_id: int, user_id: int) -> None:
         """Удалить портфель пользователя."""
-        await self.get_portfolio(portfolio_id, user_id)
+        await self._get_portfolio_or_raise(portfolio_id, user_id)
         await self.repo.delete(portfolio_id)
 
     async def handle_transaction(
@@ -100,32 +108,32 @@ class PortfolioService:
     async def _handle_trade(self, user_id: int, t: Transaction) -> None:
         """Обработка торговой операции."""
         # Валидация портфеля
-        await self.get_portfolio(t.portfolio_id, user_id)
+        await self._get_portfolio_or_raise(t.portfolio_id, user_id)
 
     async def _handle_earning(self, user_id: int, t: Transaction) -> None:
         """Обработка заработка."""
         # Валидация портфеля
-        await self.get_portfolio(t.portfolio_id, user_id)
+        await self._get_portfolio_or_raise(t.portfolio_id, user_id)
 
     async def _handle_transfer(self, user_id: int, t: Transaction) -> None:
         """Обработка перевода между портфелями."""
         await asyncio.gather(
             # Валидация исходного портфеля
-            await self.get_portfolio(t.portfolio_id, user_id),
+            self._get_portfolio_or_raise(t.portfolio_id, user_id),
             # Валидация целевого портфеля
-            await self.get_portfolio(t.portfolio2_id, user_id),
+            self._get_portfolio_or_raise(t.portfolio2_id, user_id),
         )
 
     async def _handle_input_output(self, user_id: int, t: Transaction) -> None:
         """Обработка ввода-вывода."""
         # Валидация портфеля
-        await self.get_portfolio(t.portfolio_id, user_id)
+        await self._get_portfolio_or_raise(t.portfolio_id, user_id)
 
     async def _validate_create_data(self, data: PortfolioCreateRequest, user_id: int) -> None:
         """Валидация данных для создания портфеля."""
         # Проверка уникальности имени
         if await self.repo.exists_by_name_and_user(data.name, user_id):
-            raise ConflictException('Портфель с таким именем уже существует')
+            raise ConflictError('Портфель с таким именем уже существует')
 
     async def _validate_update_data(
         self,
@@ -137,4 +145,4 @@ class PortfolioService:
         # Проверка уникальности имени (если изменилось)
         if (data.name != portfolio.name and
             await self.repo.exists_by_name_and_user(data.name, user_id)):
-                raise ConflictException('Портфель с таким именем уже существует')
+                raise ConflictError('Портфель с таким именем уже существует')
