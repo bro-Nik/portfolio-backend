@@ -1,9 +1,8 @@
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String
-from sqlalchemy.orm import Mapped, backref, declarative_base, mapped_column, relationship
+from sqlalchemy.orm import Mapped, declarative_base, mapped_column, relationship
 
 Base = declarative_base()
 
@@ -18,9 +17,7 @@ class Portfolio(Base):
     comment: Mapped[str | None] = mapped_column(String(1024))
 
     # Relationships
-    assets: Mapped[list['Asset']] = relationship(back_populates='portfolio', lazy='select')
-    transactions: Mapped[list['Transaction']] = relationship(back_populates='portfolio', lazy='select')
-
+    assets: Mapped[list['Asset']] = relationship(back_populates='portfolio')
 
 
 class Asset(Base):
@@ -59,10 +56,6 @@ class Transaction(Base):
     portfolio2_id: Mapped[int | None] = mapped_column(Integer)
     order: Mapped[bool | None] = mapped_column(Boolean)
 
-    # Relationships
-    portfolio: Mapped[Optional['Portfolio']] = relationship(back_populates='transactions')
-    wallet: Mapped[Optional['Wallet']] = relationship(back_populates='transactions')
-
     def get_direction(self, cancel: bool = False) -> int:
         """Метод для расчета направления."""
         positive_types = {'Buy', 'Input', 'TransferIn', 'Earning'}
@@ -79,9 +72,7 @@ class Wallet(Base):
     comment: Mapped[str | None] = mapped_column(String(1024))
 
     # Relationships
-    assets: Mapped[list['WalletAsset']] = relationship(back_populates='wallet', lazy='select')
-    transactions: Mapped[list['Transaction']] = relationship(back_populates='wallet',
-                                          order_by='Transaction.date.desc()')
+    assets: Mapped[list['WalletAsset']] = relationship(back_populates='wallet')
 
 
 class WalletAsset(Base):
