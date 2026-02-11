@@ -17,11 +17,11 @@ class Portfolio(Base):
     comment: Mapped[str | None] = mapped_column(String(1024))
 
     # Relationships
-    assets: Mapped[list['Asset']] = relationship(back_populates='portfolio')
+    assets: Mapped[list['PortfolioAsset']] = relationship(back_populates='portfolio')
 
 
-class Asset(Base):
-    __tablename__ = 'asset'
+class PortfolioAsset(Base):
+    __tablename__ = 'portfolio_asset'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     ticker_id: Mapped[str] = mapped_column(String(256))

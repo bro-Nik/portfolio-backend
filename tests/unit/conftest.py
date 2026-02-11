@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.repositories import (
-    AssetRepository,
+    PortfolioAssetRepository,
     PortfolioRepository,
     TransactionRepository,
     WalletAssetRepository,
@@ -52,7 +52,7 @@ def wallet_repo(db_session) -> MagicMock:
 
 @pytest.fixture
 def portfolio_asset_repo(db_session) -> MagicMock:
-    repo = MagicMock(spec=AssetRepository)
+    repo = MagicMock(spec=PortfolioAssetRepository)
     repo.session = db_session
     return repo
 

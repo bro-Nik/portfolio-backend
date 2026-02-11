@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import limiter
 from app.dependencies import get_db_session
-from app.models import Asset, WalletAsset
+from app.models import PortfolioAsset, WalletAsset
 
 router = APIRouter(tags=['Admin'])
 
@@ -22,7 +22,7 @@ async def get_all_used_tickers(
 ) -> list:
     """Получение всех используемых тикеров пользователями."""
     tickers = union_all(
-        select(distinct(Asset.ticker_id)),  # Тикеры из портфелей
+        select(distinct(PortfolioAsset.ticker_id)),  # Тикеры из портфелей
         select(distinct(WalletAsset.ticker_id)),  # Тикеры из кошельков
     )
 

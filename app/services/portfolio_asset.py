@@ -3,8 +3,8 @@ import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models import Asset, Transaction
-from app.repositories import AssetRepository, TransactionRepository
+from app.models import PortfolioAsset, Transaction
+from app.repositories import PortfolioAssetRepository, TransactionRepository
 from app.schemas import (
     PortfolioAssetCreate,
     PortfolioAssetCreateRequest,
@@ -17,7 +17,7 @@ class PortfolioAssetService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self.repo = AssetRepository(session)
+        self.repo = PortfolioAssetRepository(session)
         self.transaction_repo = TransactionRepository(session)
 
     async def create_asset(self, asset_data: PortfolioAssetCreateRequest) -> PortfolioAssetResponse:
@@ -61,7 +61,7 @@ class PortfolioAssetService:
 
     def _handle_trade_execution(
         self,
-        asset: Asset,
+        asset: PortfolioAsset,
         t: Transaction,
         direction: int,
         *,
@@ -79,7 +79,7 @@ class PortfolioAssetService:
 
     def _handle_trade_order(
         self,
-        asset: Asset,
+        asset: PortfolioAsset,
         t: Transaction,
         direction: int,
         *,
@@ -125,14 +125,14 @@ class PortfolioAssetService:
         await self.session.flush()
         asset.quantity += t.quantity * direction
 
-    async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> Asset:
+    async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> PortfolioAsset:
         """Получить актив пользователя."""
         asset = await self.repo.get_by_id_and_user(asset_id, user_id)
         if not asset:
             raise NotFoundError(f'Актив id={asset_id} не найден')
         return asset
 
-    async def get_asset_distribution(self, asset_id: int, user_id: int) -> tuple[Asset, dict]:
+    async def get_asset_distribution(self, asset_id: int, user_id: int) -> tuple[PortfolioAsset, dict]:
         """Получение информации об распределении актива."""
         asset = await self._get_asset_or_raise(asset_id, user_id)
 
@@ -168,7 +168,7 @@ class PortfolioAssetService:
         self,
         portfolio_id: int,
         ticker_ids: list[str],
-    ) -> list[Asset]:
+    ) -> list[PortfolioAsset]:
         """Получить активы портфеля по тикерам."""
         return await self.repo.get_many_by_tickers_and_portfolio(ticker_ids, portfolio_id)
 

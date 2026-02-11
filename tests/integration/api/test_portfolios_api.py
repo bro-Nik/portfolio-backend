@@ -1,6 +1,6 @@
 from fastapi import status
 
-from app.models import Asset, Portfolio
+from app.models import PortfolioAsset, Portfolio
 
 
 class TestPortfoliosAPI:
@@ -116,7 +116,7 @@ class TestPortfoliosAPI:
         assert asset['ticker_id'] == 'BTC'
 
         # Проверяем, что актив создан в БД
-        asset = await db_session.get(Asset, asset['id'])
+        asset = await db_session.get(PortfolioAsset, asset['id'])
         assert asset is not None
         assert asset.ticker_id == asset_data['ticker_id']
 

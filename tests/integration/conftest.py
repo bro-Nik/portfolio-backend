@@ -14,7 +14,7 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 from app.dependencies import get_db_session
 from app.main import app
-from app.models import Asset, Base, Portfolio, Transaction, Wallet, WalletAsset
+from app.models import PortfolioAsset, Base, Portfolio, Transaction, Wallet, WalletAsset
 
 if not settings.test_db_url:
     raise ValueError('TEST_DB_URL не установлена!')
@@ -100,8 +100,8 @@ async def wallet(db_session, user, save) -> Wallet:
 
 
 @pytest.fixture
-async def portfolio_asset(db_session, portfolio, save) -> Asset:
-    asset = Asset(
+async def portfolio_asset(db_session, portfolio, save) -> PortfolioAsset:
+    asset = PortfolioAsset(
         ticker_id='BTC',
         portfolio_id=portfolio.id,
         quantity=Decimal('0.5'),

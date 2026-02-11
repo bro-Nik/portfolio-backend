@@ -14,7 +14,7 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 from app.dependencies import get_db_session
 from app.main import app
-from app.models import Asset, Base, Portfolio, Transaction, Wallet, WalletAsset
+from app.models import PortfolioAsset, Base, Portfolio, Transaction, Wallet, WalletAsset
 
 if not settings.test_db_url:
     raise ValueError('TEST_DB_URL не установлена!')
