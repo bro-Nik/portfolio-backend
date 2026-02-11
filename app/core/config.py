@@ -1,14 +1,20 @@
-import os
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings:
-    DB_ECHO: bool = os.getenv('DB_ECHO', 'false').lower() in ('true', '1')
-    DB_POOL_SIZE: int = int(os.getenv('DB_POOL_SIZE', '5'))
-    DB_MAX_OVERFLOW: int = int(os.getenv('DB_MAX_OVERFLOW', '10'))
-    DB_URL: str = os.getenv('DATABASE_URL', '')
+class Settings(BaseSettings):
+    db_echo: bool = False
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_url: str = ''
+    test_db_url: str = ''
 
-    JWT_SECRET: str = os.getenv('JWT_SECRET', '')
-    JWT_ALGORITHM: str = os.getenv('JWT_ALGORITHM', '')
+    jwt_secret: str = ''
+    jwt_algorithm: str = ''
+
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+    )
 
 
 settings = Settings()

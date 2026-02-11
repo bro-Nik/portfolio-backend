@@ -15,7 +15,7 @@ services:
       context: .
       dockerfile: Dockerfile.test
     environment:
-      TEST_DATABASE_URL: postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-pass}@backend-db/${DB_NAME:-db}
+      TEST_DB_URL: postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-pass}@backend-db/${DB_NAME:-db}
       JWT_SECRET: test_secret_key_1234567890123456789
     container_name: backend-test
     volumes:

@@ -16,16 +16,15 @@ from app.dependencies import get_db_session
 from app.main import app
 from app.models import Asset, Base, Portfolio, Transaction, Wallet, WalletAsset
 
-TEST_DATABASE_URL = os.getenv('TEST_DATABASE_URL')
-if not TEST_DATABASE_URL:
-    raise ValueError('TEST_DATABASE_URL не установлена!')
+if not settings.test_db_url:
+    raise ValueError('TEST_DB_URL не установлена!')
 
 
 @pytest.fixture(scope='session')
 async def test_engine():
     """Создаёт новую БД для каждого запуска тестов."""
     engine = create_async_engine(
-        TEST_DATABASE_URL,
+        settings.test_db_url,
         echo=False,
         poolclass=NullPool,
         connect_args={'command_timeout': 60},
@@ -151,7 +150,7 @@ def auth_headers(user):
         'exp': datetime.now(UTC) + timedelta(hours=1),
         'type': 'access',
     }
-    token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
     return {'Authorization': f'Bearer {token}'}
 
 
