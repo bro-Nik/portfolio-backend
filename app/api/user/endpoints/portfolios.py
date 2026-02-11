@@ -18,6 +18,7 @@ from app.dependencies import (
     get_portfolio_asset_service,
     get_portfolio_service,
 )
+from app.dependencies.services import get_transaction_service
 from app.schemas import (
     PortfolioAssetCreateRequest,
     PortfolioAssetDetailResponse,
@@ -29,6 +30,7 @@ from app.schemas import (
 )
 from app.services.portfolio import PortfolioService
 from app.services.portfolio_asset import PortfolioAssetService
+from app.services.transaction import TransactionService
 
 router = APIRouter(prefix='/portfolios', tags=['Portfolios'])
 
@@ -142,6 +144,14 @@ async def get_asset(
     asset_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     asset_service: Annotated[PortfolioAssetService, Depends(get_portfolio_asset_service)],
+    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> PortfolioAssetDetailResponse:
     """Получение детальной информации об активе."""
-    return await asset_service.get_asset_detail(asset_id, current_user.id)
+    asset, distribution = await asset_service.get_asset_distribution(asset_id, current_user.id)
+    transactions = await transaction_service.get_asset_transactions(asset)
+
+    return PortfolioAssetDetailResponse(
+        transactions=transactions,
+        distribution=distribution,
+    )
+

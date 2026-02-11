@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
 from app.dependencies import User, get_current_user, get_wallet_asset_service, get_wallet_service
+from app.dependencies.services import get_transaction_service
 from app.schemas import (
     WalletAssetDetailResponse,
     WalletCreateRequest,
@@ -21,6 +22,7 @@ from app.schemas import (
     WalletResponse,
     WalletUpdateRequest,
 )
+from app.services.transaction import TransactionService
 from app.services.wallet import WalletService
 from app.services.wallet_asset import WalletAssetService
 
@@ -101,7 +103,14 @@ async def get_asset(
     request: Request,
     asset_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
-    wallet_asset_service: Annotated[WalletAssetService, Depends(get_wallet_asset_service)],
+    asset_service: Annotated[WalletAssetService, Depends(get_wallet_asset_service)],
+    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> WalletAssetDetailResponse:
     """Получение детальной информации об активе."""
-    return await wallet_asset_service.get_asset_detail(asset_id, current_user.id)
+    asset, distribution = await asset_service.get_asset_distribution(asset_id, current_user.id)
+    transactions = await transaction_service.get_asset_transactions(asset)
+
+    return WalletAssetDetailResponse(
+        transactions=transactions,
+        distribution=distribution,
+    )

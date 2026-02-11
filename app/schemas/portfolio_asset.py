@@ -39,5 +39,5 @@ class PortfolioAssetResponse(PortfolioAssetBase):
 class PortfolioAssetDetailResponse(BaseModel):
     """Ответ с детальными данными актива."""
 
-    transactions: list[dict]
+    transactions: list['TransactionResponse']
     distribution: dict

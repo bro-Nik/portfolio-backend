@@ -26,6 +26,8 @@ class TransactionBase(BaseModel):
 class TransactionResponse(TransactionBase):
     """Ответ с данными транзакции."""
 
+    id: int
+
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Asset, Portfolio
@@ -20,18 +21,21 @@ class AssetRepository(BaseRepository[Asset, PortfolioAssetCreate, PortfolioAsset
 
     async def get_many_by_ticker_and_user(self, ticker_id: str, user_id: int) -> list[Asset]:
         """Получить активы пользователя по тикеру."""
+        portfolio_subq = select(Portfolio.id).where(Portfolio.user_id == user_id).scalar_subquery()
+
         return await self.get_many_by(
             Asset.ticker_id == ticker_id,
-            Portfolio.user_id == user_id,
+            Asset.portfolio_id.in_(portfolio_subq),
             relations=('portfolio',),
         )
 
-    async def get_by_id_and_user_with_details(self, asset_id: int, user_id: int) -> Asset | None:
-        """Получить актив пользователя с портфелем и транзакциями."""
+    async def get_by_id_and_user(self, asset_id: int, user_id: int) -> Asset | None:
+        """Получить актив пользователя по ID."""
+        portfolio_subq = select(Portfolio.id).where(Portfolio.user_id == user_id).scalar_subquery()
+
         return await self.get_by(
             Asset.id == asset_id,
-            Portfolio.user_id == user_id,
-            relations=('portfolio', 'transactions'),
+            Asset.portfolio_id.in_(portfolio_subq),
         )
 
     async def get_many_by_tickers_and_portfolio(

@@ -38,12 +38,6 @@ class Asset(Base):
 
     # Relationships
     portfolio: Mapped['Portfolio'] = relationship(back_populates='assets')
-    transactions: Mapped[list['Transaction']] = relationship(
-        'Transaction',
-        primaryjoin='and_(or_(Asset.ticker_id == foreign(Transaction.ticker_id), Asset.ticker_id == foreign(Transaction.ticker2_id)), '
-                    'or_(Asset.portfolio_id == Transaction.portfolio_id, Asset.portfolio_id == Transaction.portfolio2_id))',
-        backref=backref('portfolio_asset'),
-    )
 
 
 class Transaction(Base):
@@ -102,12 +96,3 @@ class WalletAsset(Base):
 
     # Relationships
     wallet: Mapped['Wallet'] = relationship(back_populates='assets')
-    transactions: Mapped[list['Transaction']] = relationship(
-        'Transaction',
-        primaryjoin='and_(or_(WalletAsset.ticker_id == foreign(Transaction.ticker_id),'
-                    'WalletAsset.ticker_id == foreign(Transaction.ticker2_id)),'
-                    'or_(WalletAsset.wallet_id == foreign(Transaction.wallet_id),'
-                    ' WalletAsset.wallet_id == foreign(Transaction.wallet2_id)))',
-        viewonly=True,
-        backref=backref('wallet_asset', lazy=True),
-    )

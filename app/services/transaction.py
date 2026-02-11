@@ -5,7 +5,7 @@ import operator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, ValidationError
-from app.models import Transaction
+from app.models import Asset, Transaction, WalletAsset
 from app.repositories import TransactionRepository
 from app.schemas import (
     PortfolioAssetResponse,
@@ -211,3 +211,15 @@ class TransactionService:
         missing = [field for field in required_fields if getattr(data, field, None) is None]
         if missing:
             raise ValidationError(f'Отсутствуют обязательные поля: {', '.join(missing)}')
+
+    async def get_asset_transactions(
+        self,
+        asset: Asset | WalletAsset,
+    ) -> list[TransactionResponse]:
+        """Получить транзакции портфеля."""
+        a = asset
+        if isinstance(asset, Asset):
+            transactions = await self.repo.get_many_by_ticker_and_portfolio(a.ticker_id, a.portfolio_id)
+        else:
+            transactions = await self.repo.get_many_by_ticker_and_wallet(a.ticker_id, a.wallet_id)
+        return [TransactionResponse.model_validate(t) for t in transactions]
