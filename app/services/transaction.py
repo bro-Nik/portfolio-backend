@@ -89,9 +89,6 @@ class TransactionService:
         transactions: tuple[Transaction, ...],
     ) -> list[PortfolioAssetResponse]:
         """Получить измененные активы портфелей на основе транзакций."""
-        if not transactions:
-            return []
-
         # Собираем все затронутые активы из всех транзакций
         affected_assets_set = set()
         for t in transactions:
@@ -125,9 +122,6 @@ class TransactionService:
         transactions: tuple[Transaction, ...],
     ) -> list[WalletAssetResponse]:
         """Получить измененные активы кошельков на основе транзакций."""
-        if not transactions:
-            return []
-
         # Собираем все затронутые активы из всех транзакций
         affected_assets_set = set()
         for t in transactions:

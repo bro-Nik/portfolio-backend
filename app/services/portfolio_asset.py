@@ -106,13 +106,14 @@ class PortfolioAssetService:
         """Обработка перевода между портфелями."""
         asset1, asset2 = await asyncio.gather(
             self.repo.get_or_create(portfolio_id=t.portfolio_id, ticker_id=t.ticker_id),
-            self.repo.get_or_create(portfolio_id=t.portfolio2_id, ticker_id=t.ticker2_id),
+            self.repo.get_or_create(portfolio_id=t.portfolio2_id, ticker_id=t.ticker_id),
         )
         await self.session.flush()
 
-        amount = asset1.amount / asset1.quantity * t.quantity * direction
-        asset1.amount += amount
-        asset2.amount -= amount
+        if asset1.quantity and t.quantity:
+            amount = asset1.amount / asset1.quantity * t.quantity * direction
+            asset1.amount += amount
+            asset2.amount -= amount
 
         quantity = t.quantity * direction
         asset1.quantity += quantity
@@ -169,13 +170,10 @@ class PortfolioAssetService:
         ticker_ids: list[str],
     ) -> list[Asset]:
         """Получить активы портфеля по тикерам."""
-        if not ticker_ids:
-            return []
-
         return await self.repo.get_many_by_tickers_and_portfolio(ticker_ids, portfolio_id)
 
     async def _validate_create_data(self, data: PortfolioAssetCreateRequest) -> None:
-        """Валидация данных для создания портфеля."""
+        """Валидация данных для создания актива."""
         # Проверка, что актив еще не добавлен
         if await self.repo.get_by_ticker_and_portfolio(data.ticker_id, data.portfolio_id):
             raise ConflictError('Этот актив уже добавлен в портфель')

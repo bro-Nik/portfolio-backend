@@ -112,12 +112,9 @@ class WalletAssetService:
 
     async def _handle_transfer(self, t: Transaction, direction: int) -> None:
         """Обработка перевода между кошельками."""
-        if not (t.wallet_id and t.wallet2_id):
-            return
-
         asset1, asset2 = await asyncio.gather(
             self.repo.get_or_create(wallet_id=t.wallet_id, ticker_id=t.ticker_id),
-            self.repo.get_or_create(wallet_id=t.wallet2_id, ticker_id=t.ticker2_id),
+            self.repo.get_or_create(wallet_id=t.wallet2_id, ticker_id=t.ticker_id),
         )
         await self.session.flush()
 
@@ -137,9 +134,6 @@ class WalletAssetService:
         ticker_ids: list[str],
     ) -> list[WalletAsset]:
         """Получить активы кошелька по тикерам."""
-        if not ticker_ids:
-            return []
-
         return await self.repo.get_many_by_tickers_and_wallet(ticker_ids, wallet_id)
 
     async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> WalletAsset:

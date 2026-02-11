@@ -86,15 +86,14 @@ class WalletService:
         cancel: bool = False,
     ) -> None:
         """Обработка транзакции."""
+        if not t.wallet_id:
+            return
+
         if t.type in ('Buy', 'Sell'):
             await self._handle_trade(user_id, t)
         elif t.type == 'Earning':
             await self._handle_earning(user_id, t)
         elif t.type in ('TransferIn', 'TransferOut'):
-            # Портфельный перевод
-            if not (t.wallet_id and t.wallet2_id):
-                return
-
             await self._handle_transfer(user_id, t)
         elif t.type in ('Input', 'Output'):
             await self._handle_input_output(user_id, t)
@@ -113,7 +112,7 @@ class WalletService:
         await self._get_wallet_or_raise(t.wallet_id, user_id)
 
     async def _handle_transfer(self, user_id: int, t: Transaction) -> None:
-        """Обработка перевода между портфелями."""
+        """Обработка перевода между кошельками."""
         await asyncio.gather(
             # Валидация исходного кошелька
             self._get_wallet_or_raise(t.wallet_id, user_id),
