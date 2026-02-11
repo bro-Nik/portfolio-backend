@@ -46,6 +46,19 @@ async def get_user_portfolios(
     return PortfolioListResponse(portfolios=portfolios)
 
 
+@router.get('/{portfolio_id}')
+@limiter.limit('5/minute')
+@service_exception_handler('Ошибка при получении портфеля')
+async def get_user_portfolio(
+    request: Request,
+    portfolio_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
+) -> PortfolioResponse:
+    """Получение портфелея пользователя."""
+    return await portfolio_service.get_portfolio(portfolio_id, current_user.id)
+
+
 @router.post('/', status_code=201)
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании портфеля')

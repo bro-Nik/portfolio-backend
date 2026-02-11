@@ -40,6 +40,19 @@ async def get_user_wallets(
     return WalletListResponse(wallets=wallets)
 
 
+@router.get('/{wallet_id}')
+@limiter.limit('5/minute')
+@service_exception_handler('Ошибка при получении кошелька')
+async def get_user_wallet(
+    request: Request,
+    wallet_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
+) -> WalletResponse:
+    """Получение кошелька пользователя."""
+    return await wallet_service.get_wallet(wallet_id, current_user.id)
+
+
 @router.post('/', status_code=201)
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании кошелька')
