@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.services.wallet_asset import WalletAssetService
+from app.services import WalletAssetService
 
 
 @pytest.fixture

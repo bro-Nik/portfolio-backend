@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.services.transaction import TransactionService
+from app.services import TransactionService
 
 
 @pytest.fixture

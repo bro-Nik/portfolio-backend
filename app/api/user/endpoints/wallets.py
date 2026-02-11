@@ -22,9 +22,7 @@ from app.schemas import (
     WalletResponse,
     WalletUpdateRequest,
 )
-from app.services.transaction import TransactionService
-from app.services.wallet import WalletService
-from app.services.wallet_asset import WalletAssetService
+from app.services import TransactionService, WalletAssetService, WalletService
 
 router = APIRouter(prefix='/wallets', tags=['Wallets'])
 

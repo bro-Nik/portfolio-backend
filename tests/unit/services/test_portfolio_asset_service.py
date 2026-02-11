@@ -6,7 +6,7 @@ import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.schemas import PortfolioAssetResponse
-from app.services.portfolio_asset import PortfolioAssetService
+from app.services import PortfolioAssetService
 
 
 @pytest.fixture

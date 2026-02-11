@@ -10,10 +10,12 @@ from app.repositories import (
     WalletAssetRepository,
     WalletRepository,
 )
-from app.services.portfolio import PortfolioService
-from app.services.portfolio_asset import PortfolioAssetService
-from app.services.wallet import WalletService
-from app.services.wallet_asset import WalletAssetService
+from app.services import (
+    PortfolioAssetService,
+    PortfolioService,
+    WalletAssetService,
+    WalletService,
+)
 
 
 @pytest.fixture

@@ -28,9 +28,7 @@ from app.schemas import (
     PortfolioResponse,
     PortfolioUpdateRequest,
 )
-from app.services.portfolio import PortfolioService
-from app.services.portfolio_asset import PortfolioAssetService
-from app.services.transaction import TransactionService
+from app.services import PortfolioAssetService, PortfolioService, TransactionService
 
 router = APIRouter(prefix='/portfolios', tags=['Portfolios'])
 

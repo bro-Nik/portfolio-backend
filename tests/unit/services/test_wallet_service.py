@@ -4,7 +4,7 @@ import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.schemas import WalletResponse
-from app.services.wallet import WalletService
+from app.services import WalletService
 
 
 @pytest.fixture

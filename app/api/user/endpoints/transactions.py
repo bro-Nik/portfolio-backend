@@ -14,7 +14,7 @@ from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
 from app.dependencies import User, get_current_user, get_transaction_service
 from app.schemas import TransactionCreateRequest, TransactionResponseWithAssets
-from app.services.transaction import TransactionService
+from app.services import TransactionService
 
 router = APIRouter(prefix='/transactions', tags=['Transactions'])
 

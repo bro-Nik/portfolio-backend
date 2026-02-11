@@ -4,11 +4,13 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db_session
-from app.services.portfolio import PortfolioService
-from app.services.portfolio_asset import PortfolioAssetService
-from app.services.transaction import TransactionService
-from app.services.wallet import WalletService
-from app.services.wallet_asset import WalletAssetService
+from app.services import (
+    PortfolioAssetService,
+    PortfolioService,
+    TransactionService,
+    WalletAssetService,
+    WalletService,
+)
 
 
 def get_portfolio_service(
