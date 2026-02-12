@@ -19,7 +19,7 @@ class WalletAssetRepository(BaseRepository[WalletAsset, WalletAssetCreate, Walle
             WalletAsset.ticker_id == ticker_id,
         )
 
-    async def get_many_by_ticker_and_user(self, ticker_id: str, user_id: int) -> list[WalletAsset]:
+    async def get_many_by_ticker_and_user_with_wallets(self, ticker_id: str, user_id: int) -> list[WalletAsset]:
         """Получить активы пользователя по тикеру."""
         wallet_subq = select(Wallet.id).where(Wallet.user_id == user_id).scalar_subquery()
 

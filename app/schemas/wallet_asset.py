@@ -26,12 +26,3 @@ class WalletAssetResponse(WalletAssetBase):
     buy_orders: Decimal
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class WalletAssetDetailResponse(BaseModel):
-    """Ответ с детальными данными актива."""
-
-    transactions: list['TransactionResponse']
-    distribution: dict
-
-

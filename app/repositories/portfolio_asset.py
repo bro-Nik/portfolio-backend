@@ -19,7 +19,7 @@ class PortfolioAssetRepository(BaseRepository[PortfolioAsset, PortfolioAssetCrea
             PortfolioAsset.ticker_id == ticker_id,
         )
 
-    async def get_many_by_ticker_and_user(self, ticker_id: str, user_id: int) -> list[PortfolioAsset]:
+    async def get_many_by_ticker_and_user_with_portfolios(self, ticker_id: str, user_id: int) -> list[PortfolioAsset]:
         """Получить активы пользователя по тикеру."""
         portfolio_subq = select(Portfolio.id).where(Portfolio.user_id == user_id).scalar_subquery()
 

@@ -16,17 +16,16 @@ from app.dependencies import (
     get_portfolio_asset_service,
     get_portfolio_service,
 )
-from app.dependencies.services import get_transaction_service
 from app.schemas import (
     PortfolioAssetCreateRequest,
-    PortfolioAssetDetailResponse,
     PortfolioCreateRequest,
     PortfolioDeleteResponse,
     PortfolioListResponse,
     PortfolioResponse,
     PortfolioUpdateRequest,
+    TransactionResponse,
 )
-from app.services import PortfolioAssetService, PortfolioService, TransactionService
+from app.services import PortfolioAssetService, PortfolioService
 
 router = APIRouter(prefix='/portfolios', tags=['Portfolios'], responses=responses(401, 429, 500))
 
@@ -124,22 +123,27 @@ async def delete_asset_from_portfolio(
     return await portfolio_service.delete_asset(portfolio_id, current_user.id, asset_id)
 
 
-@router.get('/assets/{asset_id}', responses=responses(404))
+@router.get('/assets/{asset_id}/transactions', responses=responses(404))
 @limiter.limit('5/minute')
-@service_exception_handler('Ошибка при получении информации об активе')
-async def get_asset(
+@service_exception_handler('Ошибка при получении транзакций актива')
+async def get_asset_transactions(
     request: Request,
     asset_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     asset_service: Annotated[PortfolioAssetService, Depends(get_portfolio_asset_service)],
-    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
-) -> PortfolioAssetDetailResponse:
-    """Получение детальной информации об активе."""
-    asset, distribution = await asset_service.get_distribution(asset_id, current_user.id)
-    transactions = await transaction_service.get_asset_transactions(asset)
+) -> list[TransactionResponse]:
+    """Получение транзакций актива."""
+    return await asset_service.get_transactions(asset_id, current_user.id)
 
-    return PortfolioAssetDetailResponse(
-        transactions=transactions,
-        distribution=distribution,
-    )
 
+@router.get('/assets/{asset_id}/distribution', responses=responses(404))
+@limiter.limit('5/minute')
+@service_exception_handler('Ошибка при получении информации о распределении актива')
+async def get_asset_distribution(
+    request: Request,
+    asset_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    asset_service: Annotated[PortfolioAssetService, Depends(get_portfolio_asset_service)],
+) -> dict:
+    """Получение информации о распределении актива по портфелям."""
+    return await asset_service.get_distribution(asset_id, current_user.id)

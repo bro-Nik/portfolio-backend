@@ -14,7 +14,7 @@ class PortfolioAssetCreateRequest(BaseModel):
     """Создание нового актива."""
 
     ticker_id: str
-    portfolio_id: int | None = None
+    portfolio_id: int
 
 
 class PortfolioAssetCreate(PortfolioAssetBase):
@@ -34,10 +34,3 @@ class PortfolioAssetResponse(PortfolioAssetBase):
     buy_orders: Decimal
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class PortfolioAssetDetailResponse(BaseModel):
-    """Ответ с детальными данными актива."""
-
-    transactions: list['TransactionResponse']
-    distribution: dict

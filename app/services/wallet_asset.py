@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.models import Transaction, WalletAsset
 from app.repositories import TransactionRepository, WalletAssetRepository
-from app.schemas import WalletAssetResponse
+from app.schemas import TransactionResponse, WalletAssetResponse
 
 
 class WalletAssetService:
@@ -30,13 +30,37 @@ class WalletAssetService:
         elif t.type in ('Input', 'Output'):
             await self._handle_input_output(t, direction)
 
-    async def get_distribution(self, asset_id: int, user_id: int) -> tuple[WalletAsset, dict]:
-        """Получение информации об распределении актива."""
+    async def get_transactions(self, asset_id: int, user_id: int) -> list[TransactionResponse]:
+        """Получение транзакций актива."""
         asset = await self._get_or_raise(asset_id, user_id)
 
-        # Расчет распределения по кошелькам
-        distribution = await self._calculate_distribution(asset.ticker_id, user_id)
-        return asset, distribution
+        transactions = await self.transaction_repo.get_many_by_ticker_and_wallet(
+            asset.ticker_id, asset.wallet_id,
+        )
+        return [TransactionResponse.model_validate(t) for t in transactions]
+
+    async def get_distribution(self, asset_id: int, user_id: int) -> dict:
+        """Получение информации о распределении актива по кошелькам."""
+        asset = await self._get_or_raise(asset_id, user_id)
+
+        assets = await self.repo.get_many_by_ticker_and_user_with_wallets(asset.ticker_id, user_id)
+
+        total_quantity = sum(asset.quantity for asset in assets)
+
+        distribution = []
+        for asset in assets:
+            percentage = (asset.quantity / total_quantity * 100) if total_quantity > 0 else 0
+            distribution.append({
+                'wallet_id': asset.wallet.id,
+                'wallet_name': asset.wallet.name,
+                'quantity': asset.quantity,
+                'percentage_of_total': round(float(percentage), 2),
+            })
+
+        return {
+            'total_quantity_all_wallets': total_quantity,
+            'wallets': distribution,
+        }
 
     async def get_affected(self, *transactions: Transaction) -> list[WalletAssetResponse]:
         """Получить измененные активы кошельков на основе транзакций."""
@@ -121,23 +145,3 @@ class WalletAssetService:
     async def _handle_input_output(self, t: Transaction, direction: int) -> None:
         asset, = await self._get_or_create((t.wallet_id, t.ticker_id))
         asset.quantity += t.quantity * direction
-
-    async def _calculate_distribution(self, ticker_id: str, user_id: int) -> dict:
-        assets = await self.repo.get_many_by_ticker_and_user(ticker_id, user_id)
-
-        total_quantity = sum(asset.quantity for asset in assets)
-
-        wallet_distribution = []
-        for asset in assets:
-            percentage = (asset.quantity / total_quantity * 100) if total_quantity > 0 else 0
-            wallet_distribution.append({
-                'wallet_id': asset.wallet.id,
-                'wallet_name': asset.wallet.name,
-                'quantity': asset.quantity,
-                'percentage_of_total': round(float(percentage), 2),
-            })
-
-        return {
-            'total_quantity_all_wallets': total_quantity,
-            'wallets': wallet_distribution,
-        }

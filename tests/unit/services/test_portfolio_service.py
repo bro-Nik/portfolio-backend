@@ -107,6 +107,24 @@ class TestPortfolioService:
             service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
             service.repo.delete.assert_called_once_with(1)
 
+    async def test_add_asset_success(self, service, mock, data):
+        """Тест добавления актива в портфель."""
+        portfolio_id = 1
+        user_id = 1
+        asset_data = data(ticker_id='AAPL')
+
+        portfolio = mock(id=portfolio_id, name='Test Portfolio')
+
+        with (
+            patch.object(service, 'get', return_value=portfolio),
+            patch.object(service.asset_service, 'create', return_value=None),
+        ):
+            result = await service.add_asset(portfolio_id, user_id, asset_data)
+
+            assert result.id == portfolio_id
+            service.asset_service.create.assert_called_once_with(asset_data)
+            service.get.assert_called_once_with(portfolio_id, user_id)
+
     async def test_handle_transaction_trade(self, service, mock):
         transaction = mock(portfolio_id=1, type='Buy')
         portfolio = mock(id=1, user_id=1)

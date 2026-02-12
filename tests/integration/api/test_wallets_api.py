@@ -100,15 +100,22 @@ class TestWalletsAPI:
         db_wallet = await db_session.get(Wallet, data['wallet_id'])
         assert db_wallet is None
 
-    async def test_get_asset_detail(self, client, auth_headers, wallet, wallet_asset, transaction):
-        response = await client.get(f'/wallets/assets/{wallet_asset.id}', headers=auth_headers)
+    async def test_get_asset_transactions(self, client, auth_headers, wallet_asset, transaction):
+        response = await client.get(f'/wallets/assets/{wallet_asset.id}/transactions', headers=auth_headers)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert 'transactions' in data
-        assert 'distribution' in data
-        assert len(data['transactions']) > 0
-        assert data['transactions'][0]['ticker_id'] == 'BTC'
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert data[0]['ticker_id'] == 'BTC'
+
+    async def test_get_asset_distribution(self, client, auth_headers, wallet_asset, wallet):
+        response = await client.get(f'/wallets/assets/{wallet_asset.id}/distribution', headers=auth_headers)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert 'total_quantity_all_wallets' in data
+        assert 'wallets' in data
 
     async def test_unauthenticated_access(self, client):
         response = await client.get('/wallets/')

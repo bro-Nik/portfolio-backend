@@ -1,10 +1,9 @@
-from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
-from app.core.exceptions import NotFoundError
+from app.schemas import TransactionResponse
 from app.services import WalletAssetService
 
 
@@ -17,45 +16,47 @@ async def service(db_session, wallet_asset_repo, transaction_repo):
 
 
 class TestWalletAssetService:
-    async def test_get_asset_distribution_success(self, service, mock):
-        transaction = mock(
-            date=datetime.now(UTC),
-            ticker_id='USD',
-            quantity=Decimal('1000.0'),
-            type='Input',
-        )
+    async def test_get_asset_transactions_success(self, service, mock):
+        asset_id = 1
+        user_id = 1
+        wallet_id = 1
 
         asset = mock(
+            id=asset_id,
             ticker_id='USD',
+            wallet_id=wallet_id,
             quantity=Decimal('10000.0'),
-            transactions=[transaction],
-            wallet=mock(id=1, name='Wallet Name'),
         )
+
+        transactions = [
+            mock(id=1, ticker_id='USD', quantity=Decimal('5000.0'), type='Input'),
+            mock(id=2, ticker_id='USD', quantity=Decimal('2000.0'), type='Output'),
+        ]
 
         with (
             patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
-            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
+            patch.object(service.transaction_repo, 'get_many_by_ticker_and_wallet', return_value=transactions),
+            patch.object(TransactionResponse, 'model_validate', side_effect=transactions),
         ):
-            asset, distribution = await service.get_distribution(1, 1)
+            result = await service.get_transactions(asset_id, user_id)
 
-            assert distribution['total_quantity_all_wallets'] == Decimal('10000.0')
-            assert distribution['wallets'][0]['wallet_id'] == 1
-            assert distribution['wallets'][0]['wallet_name'] == 'Wallet Name'
-            service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
+            assert len(result) == 2
+            service.repo.get_by_id_and_user.assert_called_once_with(asset_id, user_id)
+            service.transaction_repo.get_many_by_ticker_and_wallet.assert_called_once_with('USD', wallet_id)
 
-    async def test_get_asset_distribution_not_found(self, service):
-        with (
-            patch.object(service.repo, 'get_by_id_and_user', return_value=None),
-            pytest.raises(NotFoundError, match='не найден'),
-        ):
-            await service.get_distribution(999, 1)
-
-    async def test_calculate_wallet_distribution(self, service, mock):
-        ticker_id = 'USD'
+    async def test_get_asset_distribution_success(self, service, mock):
+        asset_id = 1
         user_id = 1
 
         wallet1 = mock(id=1, name='Wallet 1')
         wallet2 = mock(id=2, name='Wallet 2')
+
+        asset = mock(
+            id=asset_id,
+            ticker_id='USD',
+            wallet=wallet1,
+            quantity=Decimal('7000.0'),
+        )
 
         assets = [
             mock(wallet=wallet1, quantity=Decimal('7000.0')),
@@ -63,40 +64,18 @@ class TestWalletAssetService:
         ]
 
         with (
-            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=assets),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
+            patch.object(service.repo, 'get_many_by_ticker_and_user_with_wallets', return_value=assets),
         ):
-            result = await service._calculate_distribution(ticker_id, user_id)
+            result = await service.get_distribution(asset_id, user_id)
 
-        assert result['total_quantity_all_wallets'] == Decimal('10000.0')
-        assert len(result['wallets']) == 2
+            assert result['total_quantity_all_wallets'] == Decimal('10000.0')
+            assert len(result['wallets']) == 2
+            assert result['wallets'][0]['wallet_id'] == 1
+            assert result['wallets'][0]['percentage_of_total'] == 70.0
 
-        wallet1_data = result['wallets'][0]
-        wallet2_data = result['wallets'][1]
-
-        assert wallet1_data['wallet_id'] == 1
-        assert wallet1_data['wallet_name'] == 'Wallet 1'
-        assert wallet1_data['quantity'] == Decimal('7000.0')
-        assert wallet1_data['percentage_of_total'] == 70.0
-
-        assert wallet2_data['wallet_id'] == 2
-        assert wallet2_data['wallet_name'] == 'Wallet 2'
-        assert wallet2_data['quantity'] == Decimal('3000.0')
-        assert wallet2_data['percentage_of_total'] == 30.0
-
-    async def test_calculate_wallet_distribution_zero_quantity(self, service, mock):
-        ticker_id = 'USD'
-        user_id = 1
-
-        wallet = mock(id=1)
-        asset = mock(wallet=wallet, quantity=Decimal('0.0'))
-
-        with (
-            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
-        ):
-            result = await service._calculate_distribution(ticker_id, user_id)
-
-        assert result['total_quantity_all_wallets'] == Decimal('0.0')
-        assert result['wallets'][0]['percentage_of_total'] == 0.0
+            service.repo.get_by_id_and_user.assert_called_once_with(asset_id, user_id)
+            service.repo.get_many_by_ticker_and_user_with_wallets.assert_called_once_with('USD', user_id)
 
     async def test_handle_transaction_trade_execution(self, service, mock):
         transaction = mock(

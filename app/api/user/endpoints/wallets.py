@@ -11,16 +11,15 @@ from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
 from app.core.responses import responses
 from app.dependencies import User, get_current_user, get_wallet_asset_service, get_wallet_service
-from app.dependencies.services import get_transaction_service
 from app.schemas import (
-    WalletAssetDetailResponse,
+    TransactionResponse,
     WalletCreateRequest,
     WalletDeleteResponse,
     WalletListResponse,
     WalletResponse,
     WalletUpdateRequest,
 )
-from app.services import TransactionService, WalletAssetService, WalletService
+from app.services import WalletAssetService, WalletService
 
 router = APIRouter(prefix='/wallets', tags=['Wallets'], responses=responses(401, 429, 500))
 
@@ -90,21 +89,27 @@ async def delete_wallet(
     return await wallet_service.delete(wallet_id, current_user.id)
 
 
-@router.get('/assets/{asset_id}', responses=responses(404))
+@router.get('/assets/{asset_id}/transactions', responses=responses(404))
 @limiter.limit('5/minute')
-@service_exception_handler('Ошибка при получении информации об активе')
+@service_exception_handler('Ошибка при получении транзакций актива')
+async def get_asset_transactions(
+    request: Request,
+    asset_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    asset_service: Annotated[WalletAssetService, Depends(get_wallet_asset_service)],
+) -> list[TransactionResponse]:
+    """Получение транзакций актива."""
+    return await asset_service.get_transactions(asset_id, current_user.id)
+
+
+@router.get('/assets/{asset_id}/distribution', responses=responses(404))
+@limiter.limit('5/minute')
+@service_exception_handler('Ошибка при получении информации о распределении актива')
 async def get_asset(
     request: Request,
     asset_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     asset_service: Annotated[WalletAssetService, Depends(get_wallet_asset_service)],
-    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
-) -> WalletAssetDetailResponse:
-    """Получение детальной информации об активе."""
-    asset, distribution = await asset_service.get_distribution(asset_id, current_user.id)
-    transactions = await transaction_service.get_asset_transactions(asset)
-
-    return WalletAssetDetailResponse(
-        transactions=transactions,
-        distribution=distribution,
-    )
+) -> dict:
+    """Получение информации о распределении актива по портфелям."""
+    return await asset_service.get_distribution(asset_id, current_user.id)

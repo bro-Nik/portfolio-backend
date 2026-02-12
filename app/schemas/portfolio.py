@@ -46,6 +46,6 @@ class PortfolioListResponse(BaseModel):
 
 
 class PortfolioDeleteResponse(BaseModel):
-    """Ответ после удаления портфелея."""
+    """Ответ после удаления портфеля."""
 
     portfolio_id: int

@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models import PortfolioAsset, Transaction
 from app.repositories import PortfolioAssetRepository, TransactionRepository
-from app.schemas import PortfolioAssetCreate, PortfolioAssetCreateRequest, PortfolioAssetResponse
+from app.schemas import (
+    PortfolioAssetCreate,
+    PortfolioAssetCreateRequest,
+    PortfolioAssetResponse,
+    TransactionResponse,
+)
 
 
 class PortfolioAssetService:
@@ -44,13 +49,39 @@ class PortfolioAssetService:
         elif t.type in ('Input', 'Output'):
             await self._handle_input_output(t, direction)
 
-    async def get_distribution(self, asset_id: int, user_id: int) -> tuple[PortfolioAsset, dict]:
-        """Получение информации об распределении актива."""
+    async def get_transactions(self, asset_id: int, user_id: int) -> list[TransactionResponse]:
+        """Получение транзакций актива."""
+        asset = await self._get_or_raise(asset_id, user_id)
+        transactions = await self.transaction_repo.get_many_by_ticker_and_portfolio(
+            asset.ticker_id, asset.portfolio_id,
+        )
+        return [TransactionResponse.model_validate(t) for t in transactions]
+
+    async def get_distribution(self, asset_id: int, user_id: int) -> dict:
+        """Получение информации о распределении актива по портфелям."""
         asset = await self._get_or_raise(asset_id, user_id)
 
-        # Расчет распределения по портфелям
-        distribution = await self._calculate_distribution(asset.ticker_id, user_id)
-        return asset, distribution
+        assets = await self.repo.get_many_by_ticker_and_user_with_portfolios(asset.ticker_id, user_id)
+
+        total_quantity = sum(asset.quantity for asset in assets)
+        total_amount = sum(asset.amount for asset in assets)
+
+        distribution = []
+        for asset in assets:
+            percentage = (asset.quantity / total_quantity * 100) if total_quantity > 0 else 0
+            distribution.append({
+                'portfolio_id': asset.portfolio.id,
+                'portfolio_name': asset.portfolio.name,
+                'quantity': asset.quantity,
+                'amount': asset.amount,
+                'percentage_of_total': round(float(percentage), 2),
+            })
+
+        return {
+            'total_quantity_all_portfolios': total_quantity,
+            'total_amount_all_portfolios': total_amount,
+            'portfolios': distribution,
+        }
 
     async def get_affected(self, *transactions: Transaction) -> list[PortfolioAssetResponse]:
         """Получить измененные активы портфелей на основе транзакций."""
@@ -146,26 +177,3 @@ class PortfolioAssetService:
     async def _handle_input_output(self, t: Transaction, direction: int) -> None:
         asset, = await self._get_or_create((t.portfolio_id, t.ticker_id))
         asset.quantity += t.quantity * direction
-
-    async def _calculate_distribution(self, ticker_id: str, user_id: int) -> dict:
-        assets = await self.repo.get_many_by_ticker_and_user(ticker_id, user_id)
-
-        total_quantity = sum(asset.quantity for asset in assets)
-        total_amount = sum(asset.amount for asset in assets)
-
-        portfolio_distribution = []
-        for asset in assets:
-            percentage = (asset.quantity / total_quantity * 100) if total_quantity > 0 else 0
-            portfolio_distribution.append({
-                'portfolio_id': asset.portfolio.id,
-                'portfolio_name': asset.portfolio.name,
-                'quantity': asset.quantity,
-                'amount': asset.amount,
-                'percentage_of_total': round(float(percentage), 2),
-            })
-
-        return {
-            'total_quantity_all_portfolios': total_quantity,
-            'total_amount_all_portfolios': total_amount,
-            'portfolios': portfolio_distribution,
-        }

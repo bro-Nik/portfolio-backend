@@ -1,6 +1,6 @@
 from fastapi import status
 
-from app.models import PortfolioAsset, Portfolio
+from app.models import Portfolio, PortfolioAsset
 
 
 class TestPortfoliosAPI:
@@ -120,15 +120,23 @@ class TestPortfoliosAPI:
         assert asset is not None
         assert asset.ticker_id == asset_data['ticker_id']
 
-    async def test_get_asset_detail(self, client, auth_headers, portfolio, portfolio_asset, transaction):
-        response = await client.get(f'/portfolios/assets/{portfolio_asset.id}', headers=auth_headers)
+    async def test_get_asset_transactions(self, client, auth_headers, portfolio_asset, transaction):
+        response = await client.get(f'/portfolios/assets/{portfolio_asset.id}/transactions', headers=auth_headers)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert 'transactions' in data
-        assert 'distribution' in data
-        assert len(data['transactions']) > 0
-        assert data['transactions'][0]['ticker_id'] == 'BTC'
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert data[0]['ticker_id'] == 'BTC'
+
+    async def test_get_asset_distribution(self, client, auth_headers, portfolio_asset, portfolio):
+        response = await client.get(f'/portfolios/assets/{portfolio_asset.id}/distribution', headers=auth_headers)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert 'total_quantity_all_portfolios' in data
+        assert 'total_amount_all_portfolios' in data
+        assert 'portfolios' in data
 
     async def test_unauthenticated_access(self, client):
         response = await client.get('/portfolios/')

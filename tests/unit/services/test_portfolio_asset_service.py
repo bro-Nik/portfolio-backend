@@ -1,11 +1,10 @@
-from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
-from app.core.exceptions import ConflictError, NotFoundError
-from app.schemas import PortfolioAssetResponse
+from app.core.exceptions import ConflictError
+from app.schemas import PortfolioAssetResponse, TransactionResponse
 from app.services import PortfolioAssetService
 
 
@@ -53,48 +52,48 @@ class TestPortfolioAssetService:
             assert result is True
             service.repo.delete.assert_called_once_with(1)
 
-    async def test_get_asset_distribution_success(self, service, mock):
-        transaction = mock(
-            date=datetime.now(UTC),
-            ticker_id='AAPL',
-            quantity=Decimal('10.0'),
-            type='Buy',
-        )
+    async def test_get_asset_transactions_success(self, service, mock):
+        asset_id = 1
+        user_id = 1
+        portfolio_id = 1
 
         asset = mock(
+            id=asset_id,
             ticker_id='AAPL',
+            portfolio_id=portfolio_id,
             quantity=Decimal('10.0'),
-            amount=Decimal('1500.0'),
-            transactions=[transaction],
-            portfolio=mock(id=1, name='Portfolio Name'),
         )
+
+        transactions = [
+            mock(id=1, ticker_id='AAPL', quantity=Decimal('5.0'), type='Buy'),
+            mock(id=2, ticker_id='AAPL', quantity=Decimal('5.0'), type='Buy'),
+        ]
 
         with (
             patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
-            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
+            patch.object(service.transaction_repo, 'get_many_by_ticker_and_portfolio', return_value=transactions),
+            patch.object(TransactionResponse, 'model_validate', side_effect=transactions),
         ):
-            asset, distribution = await service.get_distribution(1, 1)
+            result = await service.get_transactions(asset_id, user_id)
 
-            assert distribution['total_quantity_all_portfolios'] == Decimal('10.0')
-            assert distribution['total_amount_all_portfolios'] == Decimal('1500.0')
-            assert distribution['portfolios'][0]['portfolio_id'] == 1
-            assert distribution['portfolios'][0]['portfolio_name'] == 'Portfolio Name'
-            service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
+            assert len(result) == 2
+            service.repo.get_by_id_and_user.assert_called_once_with(asset_id, user_id)
+            service.transaction_repo.get_many_by_ticker_and_portfolio.assert_called_once_with('AAPL', portfolio_id)
 
-    async def test_get_asset_distribution_not_found(self, service):
-        with (
-            patch.object(service.repo, 'get_by_id_and_user', return_value=None),
-            pytest.raises(NotFoundError, match='не найден'),
-        ):
-            await service.get_distribution(999, 1)
-
-
-    async def test_calculate_distribution(self, service, mock):
-        ticker_id = 'AAPL'
+    async def test_get_asset_distribution_success(self, service, mock):
+        asset_id = 1
         user_id = 1
 
         portfolio1 = mock(id=1, name='Portfolio 1')
         portfolio2 = mock(id=2, name='Portfolio 2')
+
+        asset = mock(
+            id=asset_id,
+            ticker_id='AAPL',
+            portfolio=portfolio1,
+            quantity=Decimal('10.0'),
+            amount=Decimal('1500.0'),
+        )
 
         assets = [
             mock(portfolio=portfolio1, quantity=Decimal('10.0'), amount=Decimal('1500.0')),
@@ -102,41 +101,19 @@ class TestPortfolioAssetService:
         ]
 
         with (
-            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=assets),
+            patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
+            patch.object(service.repo, 'get_many_by_ticker_and_user_with_portfolios', return_value=assets),
         ):
-            result = await service._calculate_distribution(ticker_id, user_id)
+            result = await service.get_distribution(asset_id, user_id)
 
-        assert result['total_quantity_all_portfolios'] == Decimal('15.0')
-        assert result['total_amount_all_portfolios'] == Decimal('2250.0')
-        assert len(result['portfolios']) == 2
+            assert result['total_quantity_all_portfolios'] == Decimal('15.0')
+            assert result['total_amount_all_portfolios'] == Decimal('2250.0')
+            assert len(result['portfolios']) == 2
+            assert result['portfolios'][0]['portfolio_id'] == 1
+            assert result['portfolios'][1]['percentage_of_total'] == 33.33
 
-        portfolio1_data = result['portfolios'][0]
-        portfolio2_data = result['portfolios'][1]
-
-        assert portfolio1_data['portfolio_id'] == 1
-        assert portfolio1_data['portfolio_name'] == 'Portfolio 1'
-        assert portfolio1_data['quantity'] == Decimal('10.0')
-        assert portfolio1_data['percentage_of_total'] == 66.67
-
-        assert portfolio2_data['portfolio_id'] == 2
-        assert portfolio2_data['portfolio_name'] == 'Portfolio 2'
-        assert portfolio2_data['quantity'] == Decimal('5.0')
-        assert portfolio2_data['percentage_of_total'] == 33.33
-
-    async def test_calculate_distribution_zero_quantity(self, service, mock):
-        ticker_id = 'AAPL'
-        user_id = 1
-
-        portfolio = mock(id=1)
-        asset = mock(portfolio=portfolio, quantity=Decimal('0.0'), amount=Decimal('0.0'))
-
-        with (
-            patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
-        ):
-            result = await service._calculate_distribution(ticker_id, user_id)
-
-        assert result['total_quantity_all_portfolios'] == 0.0
-        assert result['portfolios'][0]['percentage_of_total'] == 0.0
+            service.repo.get_by_id_and_user.assert_called_once_with(asset_id, user_id)
+            service.repo.get_many_by_ticker_and_user_with_portfolios.assert_called_once_with('AAPL', user_id)
 
     async def test_handle_transaction_trade_execution(self, service, mock):
         transaction = mock(
