@@ -36,8 +36,7 @@ async def get_user_wallets(
     wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
 ) -> WalletListResponse:
     """Получение всех кошельков пользователя."""
-    wallets = await wallet_service.get_wallets(current_user.id)
-    return WalletListResponse(wallets=wallets)
+    return await wallet_service.get_many(current_user.id)
 
 
 @router.get('/{wallet_id}')
@@ -50,7 +49,7 @@ async def get_user_wallet(
     wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
 ) -> WalletResponse:
     """Получение кошелька пользователя."""
-    return await wallet_service.get_wallet(wallet_id, current_user.id)
+    return await wallet_service.get(wallet_id, current_user.id)
 
 
 @router.post('/', status_code=201)
@@ -58,12 +57,12 @@ async def get_user_wallet(
 @service_exception_handler('Ошибка при создании кошелька')
 async def create_wallet(
     request: Request,
-    wallet_data: WalletCreateRequest,
+    data: WalletCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
 ) -> WalletResponse:
     """Создание нового кошелька."""
-    return await wallet_service.create_wallet(current_user.id, wallet_data)
+    return await wallet_service.create(current_user.id, data)
 
 
 @router.put('/{wallet_id}')
@@ -72,12 +71,12 @@ async def create_wallet(
 async def update_wallet(
     request: Request,
     wallet_id: int,
-    wallet_data: WalletUpdateRequest,
+    data: WalletUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
 ) -> WalletResponse:
     """Обновление кошелька."""
-    return await wallet_service.update_wallet(wallet_id, current_user.id, wallet_data)
+    return await wallet_service.update(wallet_id, current_user.id, data)
 
 
 @router.delete('/{wallet_id}')
@@ -90,8 +89,7 @@ async def delete_wallet(
     wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
 ) -> WalletDeleteResponse:
     """Удаление кошелька."""
-    await wallet_service.delete_wallet(wallet_id, current_user.id)
-    return WalletDeleteResponse(wallet_id=wallet_id)
+    return await wallet_service.delete(wallet_id, current_user.id)
 
 
 @router.get('/assets/{asset_id}')
@@ -105,7 +103,7 @@ async def get_asset(
     transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> WalletAssetDetailResponse:
     """Получение детальной информации об активе."""
-    asset, distribution = await asset_service.get_asset_distribution(asset_id, current_user.id)
+    asset, distribution = await asset_service.get_distribution(asset_id, current_user.id)
     transactions = await transaction_service.get_asset_transactions(asset)
 
     return WalletAssetDetailResponse(

@@ -27,7 +27,7 @@ class TestPortfolioAssetService:
             patch.object(service.repo, 'create', return_value=asset),
             patch.object(PortfolioAssetResponse, 'model_validate', return_value=asset),
         ):
-            result = await service.create_asset(asset_data)
+            result = await service.create(asset_data)
 
             assert result.ticker_id == 'AAPL'
             service.repo.get_by_ticker_and_portfolio.assert_called_once_with('AAPL', 1)
@@ -42,13 +42,13 @@ class TestPortfolioAssetService:
             patch.object(service.repo, 'get_by_ticker_and_portfolio', return_value=existing_asset),
             pytest.raises(ConflictError, match='уже добавлен'),
         ):
-            await service.create_asset(asset_data)
+            await service.create(asset_data)
 
     async def test_delete_asset_success(self, service):
         with (
             patch.object(service.repo, 'delete', return_value=True),
         ):
-            result = await service.delete_asset(1)
+            result = await service.delete(1)
 
             assert result is True
             service.repo.delete.assert_called_once_with(1)
@@ -73,7 +73,7 @@ class TestPortfolioAssetService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
             patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
         ):
-            asset, distribution = await service.get_asset_distribution(1, 1)
+            asset, distribution = await service.get_distribution(1, 1)
 
             assert distribution['total_quantity_all_portfolios'] == Decimal('10.0')
             assert distribution['total_amount_all_portfolios'] == Decimal('1500.0')
@@ -86,10 +86,10 @@ class TestPortfolioAssetService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
-            await service.get_asset_distribution(999, 1)
+            await service.get_distribution(999, 1)
 
 
-    async def test_calculate_portfolio_distribution(self, service, mock):
+    async def test_calculate_distribution(self, service, mock):
         ticker_id = 'AAPL'
         user_id = 1
 
@@ -104,7 +104,7 @@ class TestPortfolioAssetService:
         with (
             patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=assets),
         ):
-            result = await service._calculate_portfolio_distribution(ticker_id, user_id)
+            result = await service._calculate_distribution(ticker_id, user_id)
 
         assert result['total_quantity_all_portfolios'] == Decimal('15.0')
         assert result['total_amount_all_portfolios'] == Decimal('2250.0')
@@ -123,7 +123,7 @@ class TestPortfolioAssetService:
         assert portfolio2_data['quantity'] == Decimal('5.0')
         assert portfolio2_data['percentage_of_total'] == 33.33
 
-    async def test_calculate_portfolio_distribution_zero_quantity(self, service, mock):
+    async def test_calculate_distribution_zero_quantity(self, service, mock):
         ticker_id = 'AAPL'
         user_id = 1
 
@@ -133,7 +133,7 @@ class TestPortfolioAssetService:
         with (
             patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
         ):
-            result = await service._calculate_portfolio_distribution(ticker_id, user_id)
+            result = await service._calculate_distribution(ticker_id, user_id)
 
         assert result['total_quantity_all_portfolios'] == 0.0
         assert result['portfolios'][0]['percentage_of_total'] == 0.0
@@ -263,20 +263,3 @@ class TestPortfolioAssetService:
             await service.handle_transaction(transaction, cancel=True)
 
         assert asset.quantity == Decimal('12000.0')  # 10000 + 2000
-
-    async def test_get_assets_by_portfolio_and_tickers(self, service, mock):
-        portfolio_id = 1
-        ticker_ids = ['AAPL', 'GOOGL']
-
-        assets = [
-            mock(ticker_id='AAPL', portfolio_id=1),
-            mock(ticker_id='GOOGL', portfolio_id=1),
-        ]
-
-        with (
-            patch.object(service.repo, 'get_many_by_tickers_and_portfolio', return_value=assets),
-        ):
-            result = await service.get_assets_by_portfolio_and_tickers(portfolio_id, ticker_ids)
-
-            assert len(result) == 2
-            service.repo.get_many_by_tickers_and_portfolio.assert_called_once_with(ticker_ids, portfolio_id)

@@ -24,12 +24,12 @@ router = APIRouter(prefix='/transactions', tags=['Transactions'])
 @service_exception_handler('Ошибка при создании транзакции')
 async def create_transaction(
     request: Request,
-    transaction_data: TransactionCreateRequest,
-    user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[TransactionService, Depends(get_transaction_service)],
+    data: TransactionCreateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Создание новой транзакции."""
-    return await service.create_transaction(user.id, transaction_data)
+    return await transaction_service.create(current_user.id, data)
 
 
 @router.put('/{transaction_id}')
@@ -38,12 +38,12 @@ async def create_transaction(
 async def update_transaction(
     request: Request,
     transaction_id: int,
-    transaction_data: TransactionCreateRequest,
-    user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[TransactionService, Depends(get_transaction_service)],
+    data: TransactionCreateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Изменение транзакции."""
-    return await service.update_transaction(user.id, transaction_id, transaction_data)
+    return await transaction_service.update(current_user.id, transaction_id, data)
 
 
 @router.delete('/{transaction_id}')
@@ -52,8 +52,8 @@ async def update_transaction(
 async def delete_transaction(
     request: Request,
     transaction_id: int,
-    user: Annotated[User, Depends(get_current_user)],
-    service: Annotated[TransactionService, Depends(get_transaction_service)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Удаление транзакции."""
-    return await service.delete_transaction(user.id, transaction_id)
+    return await transaction_service.delete(current_user.id, transaction_id)

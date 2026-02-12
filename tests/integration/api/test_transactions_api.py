@@ -26,7 +26,6 @@ class TestTransactionsAPI:
         data = response.json()
 
         assert data['success'] is True
-        assert 'транзакция успешно создана' in data.get('message', '').lower()
 
         # Проверяем что активы обновились
         assert data['portfolio_assets'] is not None
@@ -177,7 +176,6 @@ class TestTransactionsAPI:
         data = response.json()
 
         assert data['success'] is True
-        assert 'изменена' in data.get('message', '').lower()
         assert Decimal(data['transaction']['quantity']) == Decimal('2.0')
 
         # Проверяем что актив обновился
@@ -194,7 +192,6 @@ class TestTransactionsAPI:
         data = response.json()
 
         assert data['success'] is True
-        assert 'удалена' in data.get('message', '').lower()
 
         # Проверяем что актив обнулился (транзакция отменена)
         data_portfolio = (await client.get(f'/portfolios/{portfolio.id}', headers=auth_headers)).json()

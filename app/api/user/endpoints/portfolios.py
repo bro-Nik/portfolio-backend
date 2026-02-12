@@ -42,8 +42,7 @@ async def get_user_portfolios(
     portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
 ) -> PortfolioListResponse:
     """Получение всех портфелей пользователя."""
-    portfolios = await portfolio_service.get_portfolios(current_user.id)
-    return PortfolioListResponse(portfolios=portfolios)
+    return await portfolio_service.get_many(current_user.id)
 
 
 @router.get('/{portfolio_id}')
@@ -55,8 +54,8 @@ async def get_user_portfolio(
     current_user: Annotated[User, Depends(get_current_user)],
     portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
 ) -> PortfolioResponse:
-    """Получение портфелея пользователя."""
-    return await portfolio_service.get_portfolio(portfolio_id, current_user.id)
+    """Получение портфеля пользователя."""
+    return await portfolio_service.get(portfolio_id, current_user.id)
 
 
 @router.post('/', status_code=201)
@@ -64,12 +63,12 @@ async def get_user_portfolio(
 @service_exception_handler('Ошибка при создании портфеля')
 async def create_portfolio(
     request: Request,
-    portfolio_data: PortfolioCreateRequest,
+    data: PortfolioCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
 ) -> PortfolioResponse:
     """Создание нового портфеля."""
-    return await portfolio_service.create_portfolio(current_user.id, portfolio_data)
+    return await portfolio_service.create(current_user.id, data)
 
 
 @router.put('/{portfolio_id}')
@@ -78,12 +77,12 @@ async def create_portfolio(
 async def update_portfolio(
     request: Request,
     portfolio_id: int,
-    portfolio_data: PortfolioUpdateRequest,
+    data: PortfolioUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
 ) -> PortfolioResponse:
     """Обновление портфеля."""
-    return await portfolio_service.update_portfolio(portfolio_id, current_user.id, portfolio_data)
+    return await portfolio_service.update(portfolio_id, current_user.id, data)
 
 
 @router.delete('/{portfolio_id}')
@@ -96,8 +95,7 @@ async def delete_portfolio(
     portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
 ) -> PortfolioDeleteResponse:
     """Удаление портфеля."""
-    await portfolio_service.delete_portfolio(portfolio_id, current_user.id)
-    return PortfolioDeleteResponse(portfolio_id=portfolio_id)
+    return await portfolio_service.delete(portfolio_id, current_user.id)
 
 
 @router.post('/{portfolio_id}/assets', status_code=201)
@@ -109,13 +107,9 @@ async def add_asset_to_portfolio(
     data: PortfolioAssetCreateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
-    asset_service: Annotated[PortfolioAssetService, Depends(get_portfolio_asset_service)],
 ) -> PortfolioResponse:
     """Добавление актива в портфель."""
-    data.portfolio_id=portfolio_id
-
-    await asset_service.create_asset(data)
-    return await portfolio_service.get_portfolio(portfolio_id, current_user.id)
+    return await portfolio_service.add_asset(portfolio_id, current_user.id, data)
 
 
 @router.delete('/{portfolio_id}/assets/{asset_id}')
@@ -127,11 +121,9 @@ async def delete_asset_from_portfolio(
     asset_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     portfolio_service: Annotated[PortfolioService, Depends(get_portfolio_service)],
-    asset_service: Annotated[PortfolioAssetService, Depends(get_portfolio_asset_service)],
 ) -> PortfolioResponse:
     """Удаление актива из портфеля."""
-    await asset_service.delete_asset(asset_id)
-    return await portfolio_service.get_portfolio(portfolio_id, current_user.id)
+    return await portfolio_service.delete_asset(portfolio_id, current_user.id, asset_id)
 
 
 @router.get('/assets/{asset_id}')
@@ -145,7 +137,7 @@ async def get_asset(
     transaction_service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> PortfolioAssetDetailResponse:
     """Получение детальной информации об активе."""
-    asset, distribution = await asset_service.get_asset_distribution(asset_id, current_user.id)
+    asset, distribution = await asset_service.get_distribution(asset_id, current_user.id)
     transactions = await transaction_service.get_asset_transactions(asset)
 
     return PortfolioAssetDetailResponse(

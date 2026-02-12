@@ -30,18 +30,15 @@ class WalletAssetService:
         elif t.type in ('Input', 'Output'):
             await self._handle_input_output(t, direction)
 
-    async def get_asset_distribution(self, asset_id: int, user_id: int) -> tuple[WalletAsset, dict]:
+    async def get_distribution(self, asset_id: int, user_id: int) -> tuple[WalletAsset, dict]:
         """Получение информации об распределении актива."""
-        asset = await self._get_asset_or_raise(asset_id, user_id)
+        asset = await self._get_or_raise(asset_id, user_id)
 
         # Расчет распределения по кошелькам
-        distribution = await self._calculate_wallet_distribution(asset.ticker_id, user_id)
+        distribution = await self._calculate_distribution(asset.ticker_id, user_id)
         return asset, distribution
 
-    async def get_affected_assets_from_transactions(
-        self,
-        *transactions: Transaction,
-    ) -> list[WalletAssetResponse]:
+    async def get_affected(self, *transactions: Transaction) -> list[WalletAssetResponse]:
         """Получить измененные активы кошельков на основе транзакций."""
         from app.services.transaction_analyzer import get_wallet_pairs as get_pairs
 
@@ -64,17 +61,13 @@ class WalletAssetService:
         assets = [asset for result in results for asset in result]
         return [WalletAssetResponse.model_validate(a) for a in assets]
 
-    async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> WalletAsset:
-        """Получить актив пользователя."""
+    async def _get_or_raise(self, asset_id: int, user_id: int) -> WalletAsset:
         asset = await self.repo.get_by_id_and_user(asset_id, user_id)
         if not asset:
             raise NotFoundError(f'Актив id={asset_id} не найден')
         return asset
 
-    async def _get_or_create_assets(
-        self,
-        *pairs: tuple[int | None, str | None],
-    ) -> tuple[WalletAsset, ...]:
+    async def _get_or_create(self, *pairs: tuple) -> tuple[WalletAsset, ...]:
         results = await asyncio.gather(*[
             self.repo.get_or_create(wallet_id=w_id, ticker_id=t_id)
             for w_id, t_id in pairs if w_id is not None and t_id is not None
@@ -83,8 +76,7 @@ class WalletAssetService:
         return tuple(results)
 
     async def _handle_trade(self, t: Transaction, direction: int) -> None:
-        """Обработка торговой операции."""
-        asset1, asset2 = await self._get_or_create_assets(
+        asset1, asset2 = await self._get_or_create(
             (t.wallet_id, t.ticker_id), (t.wallet_id, t.ticker2_id),
         )
 
@@ -93,28 +85,18 @@ class WalletAssetService:
         handler(asset2, t, direction, is_base_asset=False)
 
     def _handle_trade_execution(
-        self,
-        asset: WalletAsset,
-        t: Transaction,
-        direction: int,
-        *,
-        is_base_asset: bool,
+        self, asset: WalletAsset, t: Transaction, direction: int,
+        *, is_base_asset: bool,
     ) -> None:
-        """Обработка исполненной сделки."""
         if is_base_asset:
             asset.quantity += t.quantity * direction
         elif not is_base_asset:
             asset.quantity -= t.quantity2 * direction
 
     def _handle_trade_order(
-        self,
-        asset: WalletAsset,
-        t: Transaction,
-        direction: int,
-        *,
-        is_base_asset: bool,
+        self, asset: WalletAsset, t: Transaction, direction: int,
+        *, is_base_asset: bool,
     ) -> None:
-        """Обработка ордера."""
         if is_base_asset:
             if t.type == 'Buy':
                 asset.buy_orders += t.quantity * t.price_usd * direction
@@ -124,13 +106,11 @@ class WalletAssetService:
             asset.sell_orders -= t.quantity2 * direction
 
     async def _handle_earning(self, t: Transaction, direction: int) -> None:
-        """Обработка заработка."""
-        asset, = await self._get_or_create_assets((t.wallet_id, t.ticker_id))
+        asset, = await self._get_or_create((t.wallet_id, t.ticker_id))
         asset.quantity += t.quantity * direction
 
     async def _handle_transfer(self, t: Transaction, direction: int) -> None:
-        """Обработка перевода между кошельками."""
-        asset1, asset2 = await self._get_or_create_assets(
+        asset1, asset2 = await self._get_or_create(
             (t.wallet_id, t.ticker_id), (t.wallet2_id, t.ticker_id),
         )
 
@@ -139,12 +119,10 @@ class WalletAssetService:
         asset2.quantity -= quantity
 
     async def _handle_input_output(self, t: Transaction, direction: int) -> None:
-        """Обработка ввода-вывода."""
-        asset, = await self._get_or_create_assets((t.wallet_id, t.ticker_id))
+        asset, = await self._get_or_create((t.wallet_id, t.ticker_id))
         asset.quantity += t.quantity * direction
 
-    async def _calculate_wallet_distribution(self, ticker_id: str, user_id: int) -> dict:
-        """Расчет распределения актива по кошелькам."""
+    async def _calculate_distribution(self, ticker_id: str, user_id: int) -> dict:
         assets = await self.repo.get_many_by_ticker_and_user(ticker_id, user_id)
 
         total_quantity = sum(asset.quantity for asset in assets)

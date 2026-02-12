@@ -6,11 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models import PortfolioAsset, Transaction
 from app.repositories import PortfolioAssetRepository, TransactionRepository
-from app.schemas import (
-    PortfolioAssetCreate,
-    PortfolioAssetCreateRequest,
-    PortfolioAssetResponse,
-)
+from app.schemas import PortfolioAssetCreate, PortfolioAssetCreateRequest, PortfolioAssetResponse
 
 
 class PortfolioAssetService:
@@ -21,17 +17,17 @@ class PortfolioAssetService:
         self.repo = PortfolioAssetRepository(session)
         self.transaction_repo = TransactionRepository(session)
 
-    async def create_asset(self, asset_data: PortfolioAssetCreateRequest) -> PortfolioAssetResponse:
+    async def create(self, data: PortfolioAssetCreateRequest) -> PortfolioAssetResponse:
         """Создать актив для портфеля."""
-        await self._validate_create_data(asset_data)
+        await self._validate_create_data(data)
 
-        asset_to_db = PortfolioAssetCreate(**asset_data.model_dump())
-
+        asset_to_db = PortfolioAssetCreate(**data.model_dump())
         asset = await self.repo.create(asset_to_db)
         await self.session.flush()
+
         return PortfolioAssetResponse.model_validate(asset)
 
-    async def delete_asset(self, asset_id: int) -> bool:
+    async def delete(self, asset_id: int) -> bool:
         """Удалить актив портфеля."""
         return await self.repo.delete(asset_id)
 
@@ -48,18 +44,15 @@ class PortfolioAssetService:
         elif t.type in ('Input', 'Output'):
             await self._handle_input_output(t, direction)
 
-    async def get_asset_distribution(self, asset_id: int, user_id: int) -> tuple[PortfolioAsset, dict]:
+    async def get_distribution(self, asset_id: int, user_id: int) -> tuple[PortfolioAsset, dict]:
         """Получение информации об распределении актива."""
-        asset = await self._get_asset_or_raise(asset_id, user_id)
+        asset = await self._get_or_raise(asset_id, user_id)
 
         # Расчет распределения по портфелям
-        distribution = await self._calculate_portfolio_distribution(asset.ticker_id, user_id)
+        distribution = await self._calculate_distribution(asset.ticker_id, user_id)
         return asset, distribution
 
-    async def get_affected_assets_from_transactions(
-        self,
-        *transactions: Transaction,
-    ) -> list[PortfolioAssetResponse]:
+    async def get_affected(self, *transactions: Transaction) -> list[PortfolioAssetResponse]:
         """Получить измененные активы портфелей на основе транзакций."""
         from app.services.transaction_analyzer import get_portfolio_pairs as get_pairs
 
@@ -82,17 +75,13 @@ class PortfolioAssetService:
         assets = [asset for result in results for asset in result]
         return [PortfolioAssetResponse.model_validate(a) for a in assets]
 
-    async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> PortfolioAsset:
-        """Получить актив пользователя."""
+    async def _get_or_raise(self, asset_id: int, user_id: int) -> PortfolioAsset:
         asset = await self.repo.get_by_id_and_user(asset_id, user_id)
         if not asset:
             raise NotFoundError(f'Актив id={asset_id} не найден')
         return asset
 
-    async def _get_or_create_assets(
-        self,
-        *pairs: tuple[int | None, str | None],
-    ) -> tuple[PortfolioAsset, ...]:
+    async def _get_or_create(self, *pairs: tuple) -> tuple[PortfolioAsset, ...]:
         results = await asyncio.gather(*[
             self.repo.get_or_create(portfolio_id=p_id, ticker_id=t_id)
             for p_id, t_id in pairs if p_id is not None and t_id is not None
@@ -101,14 +90,11 @@ class PortfolioAssetService:
         return tuple(results)
 
     async def _validate_create_data(self, data: PortfolioAssetCreateRequest) -> None:
-        """Валидация данных для создания актива."""
-        # Проверка, что актив еще не добавлен
         if await self.repo.get_by_ticker_and_portfolio(data.ticker_id, data.portfolio_id):
             raise ConflictError('Этот актив уже добавлен в портфель')
 
     async def _handle_trade(self, t: Transaction, direction: int) -> None:
-        """Обработка торговой операции."""
-        asset1, asset2 = await self._get_or_create_assets(
+        asset1, asset2 = await self._get_or_create(
             (t.portfolio_id, t.ticker_id), (t.portfolio_id, t.ticker2_id),
         )
 
@@ -117,14 +103,9 @@ class PortfolioAssetService:
         handler(asset2, t, direction, is_base_asset=False)
 
     def _handle_trade_execution(
-        self,
-        asset: PortfolioAsset,
-        t: Transaction,
-        direction: int,
-        *,
-        is_base_asset: bool,
+        self, asset: PortfolioAsset, t: Transaction, direction: int,
+        *, is_base_asset: bool,
     ) -> None:
-        """Обработка исполненной сделки."""
         if is_base_asset:
             asset.quantity += t.quantity * direction
             asset.amount += t.quantity * t.price_usd * direction
@@ -133,14 +114,9 @@ class PortfolioAssetService:
             # asset.amount -= t.quantity * t.price_usd * direction
 
     def _handle_trade_order(
-        self,
-        asset: PortfolioAsset,
-        t: Transaction,
-        direction: int,
-        *,
-        is_base_asset: bool,
+        self, asset: PortfolioAsset, t: Transaction, direction: int,
+        *, is_base_asset: bool,
     ) -> None:
-        """Обработка ордера."""
         if is_base_asset:
             if t.type == 'Buy':
                 asset.buy_orders += t.quantity * t.price_usd * direction
@@ -150,13 +126,11 @@ class PortfolioAssetService:
             asset.sell_orders -= t.quantity2 * direction
 
     async def _handle_earning(self, t: Transaction, direction: int) -> None:
-        """Обработка заработка."""
-        asset, = await self._get_or_create_assets((t.portfolio_id, t.ticker_id))
+        asset, = await self._get_or_create((t.portfolio_id, t.ticker_id))
         asset.quantity += t.quantity * direction
 
     async def _handle_transfer(self, t: Transaction, direction: int) -> None:
-        """Обработка перевода между портфелями."""
-        asset1, asset2 = await self._get_or_create_assets(
+        asset1, asset2 = await self._get_or_create(
             (t.portfolio_id, t.ticker_id), (t.portfolio2_id, t.ticker_id),
         )
 
@@ -170,12 +144,10 @@ class PortfolioAssetService:
         asset2.quantity -= quantity
 
     async def _handle_input_output(self, t: Transaction, direction: int) -> None:
-        """Обработка ввода-вывода."""
-        asset, = await self._get_or_create_assets((t.portfolio_id, t.ticker_id))
+        asset, = await self._get_or_create((t.portfolio_id, t.ticker_id))
         asset.quantity += t.quantity * direction
 
-    async def _calculate_portfolio_distribution(self, ticker_id: str, user_id: int) -> dict:
-        """Расчет распределения актива по портфелям."""
+    async def _calculate_distribution(self, ticker_id: str, user_id: int) -> dict:
         assets = await self.repo.get_many_by_ticker_and_user(ticker_id, user_id)
 
         total_quantity = sum(asset.quantity for asset in assets)

@@ -24,9 +24,9 @@ class TestPortfolioService:
 
         with (
             patch.object(service.repo, 'get_many_by_user', return_value=portfolios),
-            patch.object(PortfolioResponse, 'model_validate', side_effect=portfolios),
+            patch('app.services.portfolio.PortfolioListResponse', return_value=portfolios),
         ):
-            result = await service.get_portfolios(1)
+            result = await service.get_many(1)
 
             assert len(result) == 2
             assert result[0].name == 'Test1'
@@ -40,7 +40,7 @@ class TestPortfolioService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=portfolio),
             patch.object(PortfolioResponse, 'model_validate', return_value=portfolio),
         ):
-            result = await service.get_portfolio(1, 1)
+            result = await service.get(1, 1)
 
             assert result.id == 1
             assert result.name == 'Test'
@@ -52,7 +52,7 @@ class TestPortfolioService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
-            await service.get_portfolio(999, 1)
+            await service.get(999, 1)
 
     async def test_create_portfolio_success(self, service, mock, data):
         portfolio_data = data(name='New Portfolio', market='stocks')
@@ -62,7 +62,7 @@ class TestPortfolioService:
             patch.object(service.repo, 'exists_by_name_and_user', return_value=False),
             patch.object(service.repo, 'create', return_value=portfolio),
         ):
-            result = await service.create_portfolio(1, portfolio_data)
+            result = await service.create(1, portfolio_data)
 
             assert result.name == 'New Portfolio'
             service.repo.exists_by_name_and_user.assert_called_once_with('New Portfolio', 1)
@@ -76,7 +76,7 @@ class TestPortfolioService:
             patch.object(service.repo, 'exists_by_name_and_user', return_value=True),
             pytest.raises(ConflictError, match='уже существует'),
         ):
-            await service.create_portfolio(1, portfolio_data)
+            await service.create(1, portfolio_data)
 
     async def test_update_portfolio_success(self, service, mock, data):
         portfolio_data = data(name='Updated Name')
@@ -89,7 +89,7 @@ class TestPortfolioService:
             patch.object(service.repo, 'update', return_value=updated_portfolio),
             patch.object(PortfolioResponse, 'model_validate', return_value=updated_portfolio),
         ):
-            result = await service.update_portfolio(1, 1, portfolio_data)
+            result = await service.update(1, 1, portfolio_data)
 
             assert result.name == 'Updated Name'
             service.repo.get_by_id_and_user.assert_called_with(1, 1)
@@ -102,7 +102,7 @@ class TestPortfolioService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=portfolio),
             patch.object(service.repo, 'delete', return_value=True),
         ):
-            await service.delete_portfolio(1, 1)
+            await service.delete(1, 1)
 
             service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
             service.repo.delete.assert_called_once_with(1)

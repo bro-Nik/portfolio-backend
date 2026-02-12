@@ -15,7 +15,6 @@ from app.schemas import (
 )
 from app.services.portfolio import PortfolioService
 from app.services.portfolio_asset import PortfolioAssetService
-from app.services.transaction_analyzer import TransactionAnalyzer
 from app.services.wallet import WalletService
 from app.services.wallet_asset import WalletAssetService
 
@@ -30,66 +29,56 @@ class TransactionService:
         self.portfolio_asset_service = PortfolioAssetService(session)
         self.wallet_service = WalletService(session)
         self.wallet_asset_service = WalletAssetService(session)
-        self.analyzer = TransactionAnalyzer()
 
-    async def create_transaction(
-        self,
-        user_id: int,
-        transaction_data: TransactionCreateRequest,
-    ) -> TransactionResponseWithAssets:
+    async def create(self, user_id: int, data: TransactionCreateRequest) -> TransactionResponseWithAssets:
         """Создание новой транзакции."""
-        await self._validate_transaction_data(transaction_data)
+        await self._validate_transaction_data(data)
 
-        transaction_to_db = TransactionCreate(**transaction_data.model_dump(exclude_unset=True))
+        transaction_to_db = TransactionCreate(**data.model_dump(exclude_unset=True))
         transaction = await self.repo.create(transaction_to_db)
         await self.session.flush()
 
         # Уведомление сервисов о транзакции
         await self._notify_services(user_id, transaction)
 
-        return await self._build_transaction_response(transaction)
+        return await self._build_response_with_assets(transaction)
 
-    async def update_transaction(
+    async def update(
         self,
         user_id: int,
         transaction_id: int,
-        update_data: TransactionUpdateRequest,
+        data: TransactionUpdateRequest,
     ) -> TransactionResponseWithAssets:
         """Обновление транзакции."""
-        await self._validate_transaction_data(update_data)
-
-        transaction = await self._get_transaction_or_raise(transaction_id)
+        await self._validate_transaction_data(data)
+        transaction = await self._get_or_raise(transaction_id)
 
         # Уведомление сервисов о отмене транзакции
         await self._notify_services(user_id, transaction, cancel=True)
 
-        transaction_to_db = TransactionUpdate(**update_data.model_dump(exclude_unset=True))
+        transaction_to_db = TransactionUpdate(**data.model_dump(exclude_unset=True))
         updated_transaction = await self.repo.update(transaction.id, transaction_to_db)
 
         # Уведомление сервисов о транзакции
         await self._notify_services(user_id, updated_transaction)
 
-        return await self._build_transaction_response(updated_transaction, transaction)
+        return await self._build_response_with_assets(updated_transaction, transaction)
 
-    async def delete_transaction(self, user_id: int, transaction_id: int) -> TransactionResponseWithAssets:
+    async def delete(self, user_id: int, transaction_id: int) -> TransactionResponseWithAssets:
         """Удаление транзакции."""
-        transaction = await self._get_transaction_or_raise(transaction_id)
+        transaction = await self._get_or_raise(transaction_id)
 
         # Уведомление сервисов о отмене транзакции
         await self._notify_services(user_id, transaction, cancel=True)
 
         await self.repo.delete(transaction_id)
 
-        return await self._build_transaction_response(transaction)
+        return await self._build_response_with_assets(transaction)
 
-    async def convert_order_to_transaction(
-        self,
-        user_id: int,
-        transaction_id: int,
-    ) -> tuple[Transaction, Transaction]:
+    async def convert_order_to_transaction(self, user_id: int, transaction_id: int) -> tuple[Transaction, Transaction]:
         """Конвертация ордера в транзакцию."""
         update_data = TransactionUpdate(order=False)
-        return await self.update_transaction(user_id, transaction_id, update_data)
+        return await self.update(user_id, transaction_id, update_data)
 
     async def get_asset_transactions(
         self,
@@ -106,15 +95,13 @@ class TransactionService:
             )
         return [TransactionResponse.model_validate(t) for t in transactions]
 
-    async def _get_transaction_or_raise(self, transaction_id: int) -> Transaction:
-        """Получить транзакцию или выбросить исключение."""
+    async def _get_or_raise(self, transaction_id: int) -> Transaction:
         transaction = await self.repo.get(transaction_id)
         if not transaction:
             raise NotFoundError(f'Транзакция id={transaction_id} не найдена')
         return transaction
 
     async def _validate_transaction_data(self, data: TransactionCreateRequest) -> None:
-        """Валидация данных транзакции."""
         if data.type in ('Buy', 'Sell'):
             required = ['portfolio_id', 'wallet_id', 'ticker_id', 'ticker2_id', 'quantity']
             self._validate_required_fields(data, required)
@@ -141,7 +128,6 @@ class TransactionService:
             raise ValidationError(f'Неизвестный тип транзакции: {data.type}')
 
     async def _notify_services(self, user_id: int, t: Transaction, *, cancel: bool = False) -> None:
-        """Уведомление сервисов о транзакции."""
         await self.portfolio_service.handle_transaction(user_id, t, cancel=cancel)
         await self.wallet_service.handle_transaction(user_id, t, cancel=cancel)
 
@@ -150,18 +136,17 @@ class TransactionService:
         data: TransactionCreateRequest | TransactionUpdateRequest,
         required_fields: list[str],
     ) -> None:
-        """Проверка обязательных полей."""
         missing = [field for field in required_fields if getattr(data, field, None) is None]
         if missing:
             raise ValidationError(f'Отсутствуют обязательные поля: {', '.join(missing)}')
 
-    async def _build_transaction_response(
+    async def _build_response_with_assets(
         self,
         *transactions: Transaction,
     ) -> TransactionResponseWithAssets:
         portfolio_assets, wallet_assets = await asyncio.gather(
-            self.portfolio_asset_service.get_affected_assets_from_transactions(*transactions),
-            self.wallet_asset_service.get_affected_assets_from_transactions(*transactions),
+            self.portfolio_asset_service.get_affected(*transactions),
+            self.wallet_asset_service.get_affected(*transactions),
         )
 
         return TransactionResponseWithAssets(

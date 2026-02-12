@@ -24,9 +24,9 @@ class TestWalletService:
 
         with (
             patch.object(service.repo, 'get_many_by_user', return_value=wallets),
-            patch.object(WalletResponse, 'model_validate', side_effect=wallets),
+            patch('app.services.wallet.WalletListResponse', return_value=wallets),
         ):
-            result = await service.get_wallets(1)
+            result = await service.get_many(1)
 
             assert len(result) == 2
             assert result[0].name == 'Wallet 1'
@@ -40,7 +40,7 @@ class TestWalletService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=wallet),
             patch.object(WalletResponse, 'model_validate', return_value=wallet),
         ):
-            result = await service.get_wallet(1, 1)
+            result = await service.get(1, 1)
 
             assert result.id == 1
             assert result.name == 'Test'
@@ -52,7 +52,7 @@ class TestWalletService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
-            await service.get_wallet(999, 1)
+            await service.get(999, 1)
 
     async def test_create_wallet_success(self, service, mock, data):
         wallet_data = data(name='New Wallet')
@@ -62,7 +62,7 @@ class TestWalletService:
             patch.object(service.repo, 'exists_by_name_and_user', return_value=False),
             patch.object(service.repo, 'create', return_value=wallet),
         ):
-            result = await service.create_wallet(1, wallet_data)
+            result = await service.create(1, wallet_data)
 
             assert result.name == 'New Wallet'
             service.repo.exists_by_name_and_user.assert_called_once_with('New Wallet', 1)
@@ -76,7 +76,7 @@ class TestWalletService:
             patch.object(service.repo, 'exists_by_name_and_user', return_value=True),
             pytest.raises(ConflictError, match='уже существует'),
         ):
-            await service.create_wallet(1, wallet_data)
+            await service.create(1, wallet_data)
 
     async def test_update_wallet_success(self, service, mock, data):
         wallet_data = data(name='Updated Name')
@@ -89,7 +89,7 @@ class TestWalletService:
             patch.object(service.repo, 'update', return_value=updated_wallet),
             patch.object(WalletResponse, 'model_validate', return_value=updated_wallet),
         ):
-            result = await service.update_wallet(1, 1, wallet_data)
+            result = await service.update(1, 1, wallet_data)
 
             assert result.name == 'Updated Name'
             service.repo.get_by_id_and_user.assert_called_with(1, 1)
@@ -102,7 +102,7 @@ class TestWalletService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=wallet),
             patch.object(service.repo, 'delete', return_value=True),
         ):
-            await service.delete_wallet(1, 1)
+            await service.delete(1, 1)
 
             service.repo.get_by_id_and_user.assert_called_once_with(1, 1)
             service.repo.delete.assert_called_once_with(1)

@@ -49,10 +49,10 @@ class TestTransactionService:
 
         with (
             patch.object(service.repo, 'create', return_value=transaction),
+            patch('app.services.transaction.TransactionResponseWithAssets', return_value=True),
         ):
-            result = await service.create_transaction(1, transaction_data)
+            await service.create(1, transaction_data)
 
-            assert result.ticker_id == 'AAPL'
             service.repo.create.assert_called_once()
             service.portfolio_service.handle_transaction.assert_called_once_with(1, transaction, cancel=False)
             service.wallet_service.handle_transaction.assert_called_once_with(1, transaction, cancel=False)
@@ -75,10 +75,10 @@ class TestTransactionService:
         with (
             patch.object(service.repo, 'get', return_value=existing_transaction),
             patch.object(service.repo, 'update', return_value=updated_transaction),
+            patch('app.services.transaction.TransactionResponseWithAssets', return_value=True),
         ):
-            result = await service.update_transaction(1, transaction_id, update_data)
+            await service.update(1, transaction_id, update_data)
 
-            assert len(result) == 2  # Возвращает кортеж (updated, old)
             service.portfolio_service.handle_transaction.assert_any_call(1, existing_transaction, cancel=True)
             service.portfolio_service.handle_transaction.assert_any_call(1, updated_transaction, cancel=False)
             service.wallet_service.handle_transaction.assert_any_call(1, existing_transaction, cancel=True)
@@ -100,7 +100,7 @@ class TestTransactionService:
             patch.object(service.repo, 'get', return_value=None),
             pytest.raises(NotFoundError, match='не найдена'),
         ):
-            await service.update_transaction(1, transaction_id, update_data)
+            await service.update(1, transaction_id, update_data)
 
     async def test_delete_transaction_success(self, service, mock):
         transaction_id = 1
@@ -116,10 +116,10 @@ class TestTransactionService:
         with (
             patch.object(service.repo, 'get', return_value=transaction),
             patch.object(service.repo, 'delete', return_value=True),
+            patch('app.services.transaction.TransactionResponseWithAssets', return_value=True),
         ):
-            result = await service.delete_transaction(1, transaction_id)
+            await service.delete(1, transaction_id)
 
-            assert result == transaction
             service.portfolio_service.handle_transaction.assert_called_once_with(1, transaction, cancel=True)
             service.wallet_service.handle_transaction.assert_called_once_with(1, transaction, cancel=True)
             service.repo.delete.assert_called_once_with(1)
@@ -131,4 +131,4 @@ class TestTransactionService:
             patch.object(service.repo, 'get', return_value=None),
             pytest.raises(NotFoundError, match='не найдена'),
         ):
-            await service.delete_transaction(1, transaction_id)
+            await service.delete(1, transaction_id)

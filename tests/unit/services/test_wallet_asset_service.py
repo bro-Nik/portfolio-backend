@@ -36,7 +36,7 @@ class TestWalletAssetService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=asset),
             patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
         ):
-            asset, distribution = await service.get_asset_distribution(1, 1)
+            asset, distribution = await service.get_distribution(1, 1)
 
             assert distribution['total_quantity_all_wallets'] == Decimal('10000.0')
             assert distribution['wallets'][0]['wallet_id'] == 1
@@ -48,7 +48,7 @@ class TestWalletAssetService:
             patch.object(service.repo, 'get_by_id_and_user', return_value=None),
             pytest.raises(NotFoundError, match='не найден'),
         ):
-            await service.get_asset_distribution(999, 1)
+            await service.get_distribution(999, 1)
 
     async def test_calculate_wallet_distribution(self, service, mock):
         ticker_id = 'USD'
@@ -65,7 +65,7 @@ class TestWalletAssetService:
         with (
             patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=assets),
         ):
-            result = await service._calculate_wallet_distribution(ticker_id, user_id)
+            result = await service._calculate_distribution(ticker_id, user_id)
 
         assert result['total_quantity_all_wallets'] == Decimal('10000.0')
         assert len(result['wallets']) == 2
@@ -93,7 +93,7 @@ class TestWalletAssetService:
         with (
             patch.object(service.repo, 'get_many_by_ticker_and_user', return_value=[asset]),
         ):
-            result = await service._calculate_wallet_distribution(ticker_id, user_id)
+            result = await service._calculate_distribution(ticker_id, user_id)
 
         assert result['total_quantity_all_wallets'] == Decimal('0.0')
         assert result['wallets'][0]['percentage_of_total'] == 0.0
@@ -240,20 +240,3 @@ class TestWalletAssetService:
 
         assert asset1.quantity == Decimal('4.0')  # 5 - 1
         assert asset2.quantity == Decimal('120000.0')  # 5 - 1
-
-    async def test_get_assets_by_wallet_and_tickers(self, service, mock):
-        wallet_id = 1
-        ticker_ids = ['USD', 'EUR']
-
-        assets = [
-            mock(ticker_id='USD', wallet_id=1),
-            mock(ticker_id='EUR', wallet_id=1),
-        ]
-
-        with (
-            patch.object(service.repo, 'get_many_by_tickers_and_wallet', return_value=assets),
-        ):
-            result = await service.get_assets_by_wallet_and_tickers(wallet_id, ticker_ids)
-
-            assert len(result) == 2
-            service.repo.get_many_by_tickers_and_wallet.assert_called_once_with(ticker_ids, wallet_id)
