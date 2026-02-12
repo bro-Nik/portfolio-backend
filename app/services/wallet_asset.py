@@ -1,10 +1,12 @@
 import asyncio
+from collections import defaultdict
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.models import Transaction, WalletAsset
 from app.repositories import TransactionRepository, WalletAssetRepository
+from app.schemas import WalletAssetResponse
 
 
 class WalletAssetService:
@@ -36,13 +38,31 @@ class WalletAssetService:
         distribution = await self._calculate_wallet_distribution(asset.ticker_id, user_id)
         return asset, distribution
 
-    async def get_assets_by_wallet_and_tickers(
+    async def get_affected_assets_from_transactions(
         self,
-        wallet_id: int,
-        ticker_ids: list[str],
-    ) -> list[WalletAsset]:
-        """Получить активы кошелька по тикерам."""
-        return await self.repo.get_many_by_tickers_and_wallet(ticker_ids, wallet_id)
+        *transactions: Transaction,
+    ) -> list[WalletAssetResponse]:
+        """Получить измененные активы кошельков на основе транзакций."""
+        from app.services.transaction_analyzer import get_wallet_pairs as get_pairs
+
+        # Сбор затронутых пар (wallet_id, ticker_id)
+        pairs = {pair for t in transactions for pair in get_pairs(t)}
+        if not pairs:
+            return []
+
+        # Группировка по wallet_id
+        assets_map = defaultdict(list)
+        for wallet_id, ticker_id in pairs:
+            assets_map[wallet_id].append(ticker_id)
+
+        # Получение активов для каждого кошелька
+        results = await asyncio.gather(*[
+            self.repo.get_many_by_tickers_and_wallet(ticker_ids, wallet_id)
+            for wallet_id, ticker_ids in assets_map.items()
+        ])
+
+        assets = [asset for result in results for asset in result]
+        return [WalletAssetResponse.model_validate(a) for a in assets]
 
     async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> WalletAsset:
         """Получить актив пользователя."""
@@ -55,11 +75,10 @@ class WalletAssetService:
         self,
         *pairs: tuple[int | None, str | None],
     ) -> tuple[WalletAsset, ...]:
-        tasks = [
+        results = await asyncio.gather(*[
             self.repo.get_or_create(wallet_id=w_id, ticker_id=t_id)
             for w_id, t_id in pairs if w_id is not None and t_id is not None
-        ]
-        results = await asyncio.gather(*tasks)
+        ])
         await self.session.flush()
         return tuple(results)
 

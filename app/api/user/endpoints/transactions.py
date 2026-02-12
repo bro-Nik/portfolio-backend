@@ -29,14 +29,7 @@ async def create_transaction(
     service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Создание новой транзакции."""
-    transaction = await service.create_transaction(user.id, transaction_data)
-
-    return TransactionResponseWithAssets(
-        message='Транзакция успешно создана',
-        transaction=transaction,
-        portfolio_assets=await service.get_affected_portfolio_assets((transaction,)),
-        wallet_assets=await service.get_affected_wallet_assets((transaction,)),
-    )
+    return await service.create_transaction(user.id, transaction_data)
 
 
 @router.put('/{transaction_id}')
@@ -50,16 +43,7 @@ async def update_transaction(
     service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Изменение транзакции."""
-    # Новая и старая транзакция
-    transactions = await service.update_transaction(user.id, transaction_id, transaction_data)
-    updated_transaction = transactions[1]
-
-    return TransactionResponseWithAssets(
-        message='Транзакция успешно изменена',
-        transaction=updated_transaction,
-        portfolio_assets=await service.get_affected_portfolio_assets(transactions),
-        wallet_assets=await service.get_affected_wallet_assets(transactions),
-    )
+    return await service.update_transaction(user.id, transaction_id, transaction_data)
 
 
 @router.delete('/{transaction_id}')
@@ -72,10 +56,4 @@ async def delete_transaction(
     service: Annotated[TransactionService, Depends(get_transaction_service)],
 ) -> TransactionResponseWithAssets:
     """Удаление транзакции."""
-    transaction = await service.delete_transaction(user.id, transaction_id)
-
-    return TransactionResponseWithAssets(
-        message='Транзакция успешно удалена',
-        portfolio_assets=await service.get_affected_portfolio_assets((transaction,)),
-        wallet_assets=await service.get_affected_wallet_assets((transaction,)),
-    )
+    return await service.delete_transaction(user.id, transaction_id)

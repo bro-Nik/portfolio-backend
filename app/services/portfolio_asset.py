@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,13 +56,31 @@ class PortfolioAssetService:
         distribution = await self._calculate_portfolio_distribution(asset.ticker_id, user_id)
         return asset, distribution
 
-    async def get_assets_by_portfolio_and_tickers(
+    async def get_affected_assets_from_transactions(
         self,
-        portfolio_id: int,
-        ticker_ids: list[str],
-    ) -> list[PortfolioAsset]:
-        """Получить активы портфеля по тикерам."""
-        return await self.repo.get_many_by_tickers_and_portfolio(ticker_ids, portfolio_id)
+        *transactions: Transaction,
+    ) -> list[PortfolioAssetResponse]:
+        """Получить измененные активы портфелей на основе транзакций."""
+        from app.services.transaction_analyzer import get_portfolio_pairs as get_pairs
+
+        # Сбор затронутых пар (portfolio_id, ticker_id)
+        pairs = {pair for t in transactions for pair in get_pairs(t)}
+        if not pairs:
+            return []
+
+        # Группировка по portfolio_id
+        assets_map = defaultdict(list)
+        for portfolio_id, ticker_id in pairs:
+            assets_map[portfolio_id].append(ticker_id)
+
+        # Получение активов для каждого портфеля
+        results = await asyncio.gather(*[
+            self.repo.get_many_by_tickers_and_portfolio(ticker_ids, portfolio_id)
+            for portfolio_id, ticker_ids in assets_map.items()
+        ])
+
+        assets = [asset for result in results for asset in result]
+        return [PortfolioAssetResponse.model_validate(a) for a in assets]
 
     async def _get_asset_or_raise(self, asset_id: int, user_id: int) -> PortfolioAsset:
         """Получить актив пользователя."""
@@ -74,11 +93,10 @@ class PortfolioAssetService:
         self,
         *pairs: tuple[int | None, str | None],
     ) -> tuple[PortfolioAsset, ...]:
-        tasks = [
+        results = await asyncio.gather(*[
             self.repo.get_or_create(portfolio_id=p_id, ticker_id=t_id)
             for p_id, t_id in pairs if p_id is not None and t_id is not None
-        ]
-        results = await asyncio.gather(*tasks)
+        ])
         await self.session.flush()
         return tuple(results)
 
