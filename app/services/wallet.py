@@ -29,22 +29,13 @@ class WalletService:
         return [WalletResponse.model_validate(w) for w in wallets]
 
     async def get_wallet(self, wallet_id: int, user_id: int) -> WalletResponse:
-        """Получить кошельк пользователя."""
+        """Получить кошелек пользователя."""
         wallet = await self._get_wallet_or_raise(wallet_id, user_id)
         await self.session.refresh(wallet, ['assets'])
         return WalletResponse.model_validate(wallet)
 
-    async def _get_wallet_or_raise(self, wallet_id: int, user_id: int) -> Wallet:
-        """Получить кошельк пользователя."""
-        wallet = await self.repo.get_by_id_and_user(wallet_id, user_id)
-
-        if not wallet:
-            raise NotFoundError(f'Кошелек id={wallet_id} не найден')
-
-        return wallet
-
     async def create_wallet(self, user_id: int, wallet_data: WalletCreateRequest) -> WalletResponse:
-        """Создать кошельк для пользователя."""
+        """Создать кошелек для пользователя."""
         await self._validate_create_data(wallet_data, user_id)
 
         wallet_to_db = WalletCreate(
@@ -63,7 +54,7 @@ class WalletService:
         user_id: int,
         wallet_data: WalletUpdateRequest,
     ) -> WalletResponse:
-        """Обновить кошельк пользователя."""
+        """Обновить кошелек пользователя."""
         wallet = await self._get_wallet_or_raise(wallet_id, user_id)
         await self._validate_update_data(wallet_data, user_id, wallet)
 
@@ -74,7 +65,7 @@ class WalletService:
         return wallet
 
     async def delete_wallet(self, wallet_id: int, user_id: int) -> None:
-        """Удалить кошельк пользователя."""
+        """Удалить кошелек пользователя."""
         await self._get_wallet_or_raise(wallet_id, user_id)
         await self.repo.delete(wallet_id)
 
@@ -101,35 +92,16 @@ class WalletService:
         # Уведомление сервиса актива о новой транзакции
         await self.asset_service.handle_transaction(t, cancel=cancel)
 
-    async def _handle_trade(self, user_id: int, t: Transaction) -> None:
-        """Обработка торговой операции."""
-        # Валидация кошелька
-        await self._get_wallet_or_raise(t.wallet_id, user_id)
-
-    async def _handle_earning(self, user_id: int, t: Transaction) -> None:
-        """Обработка заработка."""
-        # Валидация кошелька
-        await self._get_wallet_or_raise(t.wallet_id, user_id)
-
-    async def _handle_transfer(self, user_id: int, t: Transaction) -> None:
-        """Обработка перевода между кошельками."""
-        await asyncio.gather(
-            # Валидация исходного кошелька
-            self._get_wallet_or_raise(t.wallet_id, user_id),
-            # Валидация целевого кошелька
-            self._get_wallet_or_raise(t.wallet2_id, user_id),
-        )
-
-    async def _handle_input_output(self, user_id: int, t: Transaction) -> None:
-        """Обработка ввода-вывода."""
-        # Валидация кошелька
-        await self._get_wallet_or_raise(t.wallet_id, user_id)
+    async def _get_wallet_or_raise(self, wallet_id: int, user_id: int) -> Wallet:
+        """Получить кошелек пользователя."""
+        wallet = await self.repo.get_by_id_and_user(wallet_id, user_id)
+        if not wallet:
+            raise NotFoundError(f'Кошелек id={wallet_id} не найден')
+        return wallet
 
     async def _validate_create_data(self, data: WalletCreateRequest, user_id: int) -> None:
         """Валидация данных для создания кошелька."""
-        # Проверка уникальности имени
-        if await self.repo.exists_by_name_and_user(data.name, user_id):
-            raise ConflictError('Кошелек с таким именем уже существует')
+        await self._validate_unique_name(data.name, user_id)
 
     async def _validate_update_data(
         self,
@@ -138,7 +110,30 @@ class WalletService:
         wallet: Wallet,
     ) -> None:
         """Валидация данных для обновления кошелька."""
-        # Проверка уникальности имени (если изменилось)
-        if (data.name != wallet.name and
-            await self.repo.exists_by_name_and_user(data.name, user_id)):
-                raise ConflictError('Кошелек с таким именем уже существует')
+        if data.name != wallet.name:
+            await self._validate_unique_name(data.name, user_id)
+
+    async def _validate_unique_name(self, name: str, user_id: int) -> None:
+        if await self.repo.exists_by_name_and_user(name, user_id):
+            raise ConflictError('Кошелек с таким именем уже существует')
+
+    async def _validate_wallets(self, user_id: int, *wallet_ids: int | None) -> None:
+        if ids := [id_ for id_ in wallet_ids if id_ is not None]:
+            tasks = [self._get_wallet_or_raise(id_, user_id) for id_ in ids]
+            await asyncio.gather(*tasks)
+
+    async def _handle_trade(self, user_id: int, t: Transaction) -> None:
+        """Обработка торговой операции."""
+        await self._validate_wallets(user_id, t.wallet_id)
+
+    async def _handle_earning(self, user_id: int, t: Transaction) -> None:
+        """Обработка заработка."""
+        await self._validate_wallets(user_id, t.wallet_id)
+
+    async def _handle_transfer(self, user_id: int, t: Transaction) -> None:
+        """Обработка перевода между кошельками."""
+        await self._validate_wallets(user_id, t.wallet_id, t.wallet2_id)
+
+    async def _handle_input_output(self, user_id: int, t: Transaction) -> None:
+        """Обработка ввода-вывода."""
+        await self._validate_wallets(user_id, t.wallet_id)

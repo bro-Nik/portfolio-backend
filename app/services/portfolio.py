@@ -34,15 +34,6 @@ class PortfolioService:
         await self.session.refresh(portfolio, ['assets'])
         return PortfolioResponse.model_validate(portfolio)
 
-    async def _get_portfolio_or_raise(self, portfolio_id: int, user_id: int) -> Portfolio:
-        """Получить портфель пользователя."""
-        portfolio = await self.repo.get_by_id_and_user(portfolio_id, user_id)
-
-        if not portfolio:
-            raise NotFoundError(f'Портфель id={portfolio_id} не найден')
-
-        return portfolio
-
     async def create_portfolio(
         self,
         user_id: int,
@@ -105,35 +96,16 @@ class PortfolioService:
         # Уведомление сервиса актива о новой транзакции
         await self.asset_service.handle_transaction(t, cancel=cancel)
 
-    async def _handle_trade(self, user_id: int, t: Transaction) -> None:
-        """Обработка торговой операции."""
-        # Валидация портфеля
-        await self._get_portfolio_or_raise(t.portfolio_id, user_id)
-
-    async def _handle_earning(self, user_id: int, t: Transaction) -> None:
-        """Обработка заработка."""
-        # Валидация портфеля
-        await self._get_portfolio_or_raise(t.portfolio_id, user_id)
-
-    async def _handle_transfer(self, user_id: int, t: Transaction) -> None:
-        """Обработка перевода между портфелями."""
-        await asyncio.gather(
-            # Валидация исходного портфеля
-            self._get_portfolio_or_raise(t.portfolio_id, user_id),
-            # Валидация целевого портфеля
-            self._get_portfolio_or_raise(t.portfolio2_id, user_id),
-        )
-
-    async def _handle_input_output(self, user_id: int, t: Transaction) -> None:
-        """Обработка ввода-вывода."""
-        # Валидация портфеля
-        await self._get_portfolio_or_raise(t.portfolio_id, user_id)
+    async def _get_portfolio_or_raise(self, portfolio_id: int, user_id: int) -> Portfolio:
+        """Получить портфель пользователя."""
+        portfolio = await self.repo.get_by_id_and_user(portfolio_id, user_id)
+        if not portfolio:
+            raise NotFoundError(f'Портфель id={portfolio_id} не найден')
+        return portfolio
 
     async def _validate_create_data(self, data: PortfolioCreateRequest, user_id: int) -> None:
         """Валидация данных для создания портфеля."""
-        # Проверка уникальности имени
-        if await self.repo.exists_by_name_and_user(data.name, user_id):
-            raise ConflictError('Портфель с таким именем уже существует')
+        await self._validate_unique_name(data.name, user_id)
 
     async def _validate_update_data(
         self,
@@ -142,7 +114,30 @@ class PortfolioService:
         portfolio: Portfolio,
     ) -> None:
         """Валидация данных для обновления портфеля."""
-        # Проверка уникальности имени (если изменилось)
-        if (data.name != portfolio.name and
-            await self.repo.exists_by_name_and_user(data.name, user_id)):
-                raise ConflictError('Портфель с таким именем уже существует')
+        if data.name != portfolio.name:
+            await self._validate_unique_name(data.name, user_id)
+
+    async def _validate_unique_name(self, name: str, user_id: int) -> None:
+        if await self.repo.exists_by_name_and_user(name, user_id):
+            raise ConflictError('Портфель с таким именем уже существует')
+
+    async def _validate_portfolios(self, user_id: int, *portfolio_ids: int | None) -> None:
+        if ids := [id_ for id_ in portfolio_ids if id_ is not None]:
+            tasks = [self._get_portfolio_or_raise(id_, user_id) for id_ in ids]
+            await asyncio.gather(*tasks)
+
+    async def _handle_trade(self, user_id: int, t: Transaction) -> None:
+        """Обработка торговой операции."""
+        await self._validate_portfolios(user_id, t.portfolio_id)
+
+    async def _handle_earning(self, user_id: int, t: Transaction) -> None:
+        """Обработка заработка."""
+        await self._validate_portfolios(user_id, t.portfolio_id)
+
+    async def _handle_transfer(self, user_id: int, t: Transaction) -> None:
+        """Обработка перевода между портфелями."""
+        await self._validate_portfolios(user_id, t.portfolio_id, t.portfolio2_id)
+
+    async def _handle_input_output(self, user_id: int, t: Transaction) -> None:
+        """Обработка ввода-вывода."""
+        await self._validate_portfolios(user_id, t.portfolio_id)

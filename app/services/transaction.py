@@ -74,7 +74,7 @@ class TransactionService:
 
         return updated_transaction, transaction
 
-    async def delete_transaction(self, user_id:int, transaction_id: int) -> Transaction:
+    async def delete_transaction(self, user_id: int, transaction_id: int) -> Transaction:
         """Удаление транзакции."""
         transaction = await self._get_transaction_or_raise(transaction_id)
 
@@ -83,6 +83,15 @@ class TransactionService:
 
         await self.repo.delete(transaction_id)
         return transaction
+
+    async def convert_order_to_transaction(
+        self,
+        user_id: int,
+        transaction_id: int,
+    ) -> tuple[Transaction, Transaction]:
+        """Конвертация ордера в транзакцию."""
+        update_data = TransactionUpdate(order=False)
+        return await self.update_transaction(user_id, transaction_id, update_data)
 
     async def get_affected_portfolio_assets(
         self,
@@ -116,7 +125,6 @@ class TransactionService:
         assets = functools.reduce(operator.iadd, results, [])
         return [PortfolioAssetResponse.model_validate(a) for a in assets]
 
-
     async def get_affected_wallet_assets(
         self,
         transactions: tuple[Transaction, ...],
@@ -148,14 +156,27 @@ class TransactionService:
         assets = functools.reduce(operator.iadd, results, [])
         return [WalletAssetResponse.model_validate(a) for a in assets]
 
-    async def convert_order_to_transaction(
+    async def get_asset_transactions(
         self,
-        user_id:int,
-        transaction_id: int,
-    ) -> tuple[Transaction, Transaction]:
-        """Конвертация ордера в транзакцию."""
-        update_data = TransactionUpdate(order=False)
-        return await self.update_transaction(user_id, transaction_id, update_data)
+        asset: PortfolioAsset | WalletAsset,
+    ) -> list[TransactionResponse]:
+        """Получить транзакции портфеля."""
+        if isinstance(asset, PortfolioAsset):
+            transactions = await self.repo.get_many_by_ticker_and_portfolio(
+                asset.ticker_id, asset.portfolio_id,
+            )
+        else:
+            transactions = await self.repo.get_many_by_ticker_and_wallet(
+                asset.ticker_id, asset.wallet_id,
+            )
+        return [TransactionResponse.model_validate(t) for t in transactions]
+
+    async def _get_transaction_or_raise(self, transaction_id: int) -> Transaction:
+        """Получить транзакцию или выбросить исключение."""
+        transaction = await self.repo.get(transaction_id)
+        if not transaction:
+            raise NotFoundError(f'Транзакция id={transaction_id} не найдена')
+        return transaction
 
     async def _validate_transaction_data(self, data: TransactionCreateRequest) -> None:
         """Валидация данных транзакции."""
@@ -184,13 +205,6 @@ class TransactionService:
         else:
             raise ValidationError(f'Неизвестный тип транзакции: {data.type}')
 
-    async def _get_transaction_or_raise(self, transaction_id: int) -> Transaction:
-        """Получить транзакцию или выбросить исключение."""
-        transaction = await self.repo.get(transaction_id)
-        if not transaction:
-            raise NotFoundError(f'Транзакция id={transaction_id} не найдена')
-        return transaction
-
     async def _notify_services(self, user_id: int, t: Transaction, *, cancel: bool = False) -> None:
         """Уведомление сервисов о транзакции."""
         await self.portfolio_service.handle_transaction(user_id, t, cancel=cancel)
@@ -205,15 +219,3 @@ class TransactionService:
         missing = [field for field in required_fields if getattr(data, field, None) is None]
         if missing:
             raise ValidationError(f'Отсутствуют обязательные поля: {', '.join(missing)}')
-
-    async def get_asset_transactions(
-        self,
-        asset: PortfolioAsset | WalletAsset,
-    ) -> list[TransactionResponse]:
-        """Получить транзакции портфеля."""
-        a = asset
-        if isinstance(asset, PortfolioAsset):
-            transactions = await self.repo.get_many_by_ticker_and_portfolio(a.ticker_id, a.portfolio_id)
-        else:
-            transactions = await self.repo.get_many_by_ticker_and_wallet(a.ticker_id, a.wallet_id)
-        return [TransactionResponse.model_validate(t) for t in transactions]

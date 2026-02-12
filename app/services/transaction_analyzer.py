@@ -11,7 +11,7 @@ class TransactionAnalyzer:
         ticker1: str | None,
         ticker2: str | None,
     ) -> list[tuple[int, str]]:
-        """Общий метод для получения затронутых активов."""
+        """Получить все комбинации ID и тикеров."""
         ids = [id_ for id_ in (id1, id2) if id_]
         tickers = [ticker for ticker in (ticker1, ticker2) if ticker]
 
