@@ -22,7 +22,7 @@ class TestTransactionsAPI:
 
         response = await client.post('/transactions/', json=transaction_data, headers=auth_headers)
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
 
         assert data['success'] is True
@@ -62,7 +62,7 @@ class TestTransactionsAPI:
 
         response = await client.post('/transactions/', json=sell_transaction, headers=auth_headers)
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
 
         # Проверяем что в портфеле количество уменьшилось
         data_portfolio = (await client.get(f'/portfolios/{portfolio.id}', headers=auth_headers)).json()
@@ -95,7 +95,7 @@ class TestTransactionsAPI:
 
         response = await client.post('/transactions/', json=transfer_transaction, headers=auth_headers)
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
 
         # Проверяем оба портфеля
         data_portfolio1 = (await client.get(f'/portfolios/{portfolio.id}', headers=auth_headers)).json()
@@ -120,7 +120,7 @@ class TestTransactionsAPI:
 
         response = await client.post('/transactions/', json=transaction_data, headers=auth_headers)
 
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
 
         data_wallet = (await client.get(f'/wallets/{wallet.id}', headers=auth_headers)).json()
 
@@ -151,7 +151,7 @@ class TestTransactionsAPI:
         }
 
         response = await client.post('/transactions/', json=output_transaction_data, headers=auth_headers)
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_201_CREATED
 
         data_wallet = (await client.get(f'/wallets/{wallet.id}', headers=auth_headers)).json()
 
@@ -212,7 +212,7 @@ class TestTransactionsAPI:
 
         response = await client.post('/transactions/', json=transaction_data, headers=auth_headers)
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     async def test_create_transaction_missing_required_fields(self, client, auth_headers):
         transaction_data = {
