@@ -29,10 +29,7 @@ def service_exception_handler(
                 raise NotFoundException(str(e)) from e
             except ConflictError as e:
                 raise ConflictException(str(e)) from e
-            # TODO: Заменить на BadRequestError
-            except ValidationError as e:
-                raise BadRequestException(str(e)) from e
-            except BadRequestError as e:
+            except BusinessRuleError as e:
                 raise BadRequestException(str(e)) from e
             except Exception as e:
                 raise InternalServerException(f'{default_message}: {e!s}') from e
@@ -137,15 +134,8 @@ class ConflictError(BusinessError):
         super().__init__(message)
 
 
-class ValidationError(BusinessError):
-    """Ошибка валидации."""
-
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
-
-
-class BadRequestError(BusinessError):
-    """Неверный запрос."""
+class BusinessRuleError(BusinessError):
+    """Нарушение бизнес-правила."""
 
     def __init__(self, message: str) -> None:
         super().__init__(message)

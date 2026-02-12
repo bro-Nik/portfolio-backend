@@ -2,7 +2,7 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import BusinessRuleError, NotFoundError
 from app.models import PortfolioAsset, Transaction, WalletAsset
 from app.repositories import TransactionRepository
 from app.schemas import (
@@ -125,7 +125,7 @@ class TransactionService:
             self._validate_required_fields(data, required)
 
         else:
-            raise ValidationError(f'Неизвестный тип транзакции: {data.type}')
+            raise BusinessRuleError(f'Неизвестный тип транзакции: {data.type}')
 
     async def _notify_services(self, user_id: int, t: Transaction, *, cancel: bool = False) -> None:
         await self.portfolio_service.handle_transaction(user_id, t, cancel=cancel)
@@ -138,7 +138,7 @@ class TransactionService:
     ) -> None:
         missing = [field for field in required_fields if getattr(data, field, None) is None]
         if missing:
-            raise ValidationError(f'Отсутствуют обязательные поля: {', '.join(missing)}')
+            raise BusinessRuleError(f'Отсутствуют обязательные поля: {', '.join(missing)}')
 
     async def _build_response_with_assets(
         self,
