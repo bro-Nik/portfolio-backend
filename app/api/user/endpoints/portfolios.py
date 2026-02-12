@@ -3,15 +3,13 @@
 Все эндпоинты требуют валидный access token
 """
 
-# TODO: Добавить responses для автодокументации
-
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
+from app.core.responses import responses
 from app.dependencies import (
     User,
     get_current_user,
@@ -30,7 +28,7 @@ from app.schemas import (
 )
 from app.services import PortfolioAssetService, PortfolioService, TransactionService
 
-router = APIRouter(prefix='/portfolios', tags=['Portfolios'])
+router = APIRouter(prefix='/portfolios', tags=['Portfolios'], responses=responses(401, 429, 500))
 
 
 @router.get('/')
@@ -45,7 +43,7 @@ async def get_user_portfolios(
     return await portfolio_service.get_many(current_user.id)
 
 
-@router.get('/{portfolio_id}')
+@router.get('/{portfolio_id}', responses=responses(404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при получении портфеля')
 async def get_user_portfolio(
@@ -58,7 +56,7 @@ async def get_user_portfolio(
     return await portfolio_service.get(portfolio_id, current_user.id)
 
 
-@router.post('/', status_code=201)
+@router.post('/', status_code=201, responses=responses(400, 409))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании портфеля')
 async def create_portfolio(
@@ -71,7 +69,7 @@ async def create_portfolio(
     return await portfolio_service.create(current_user.id, data)
 
 
-@router.put('/{portfolio_id}')
+@router.put('/{portfolio_id}', responses=responses(400, 404, 409))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при изменении портфеля')
 async def update_portfolio(
@@ -85,7 +83,7 @@ async def update_portfolio(
     return await portfolio_service.update(portfolio_id, current_user.id, data)
 
 
-@router.delete('/{portfolio_id}')
+@router.delete('/{portfolio_id}', responses=responses(400, 404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при удалении портфеля')
 async def delete_portfolio(
@@ -98,7 +96,7 @@ async def delete_portfolio(
     return await portfolio_service.delete(portfolio_id, current_user.id)
 
 
-@router.post('/{portfolio_id}/assets', status_code=201)
+@router.post('/{portfolio_id}/assets', status_code=201, responses=responses(400, 404, 409))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при добавлении актива портфеля')
 async def add_asset_to_portfolio(
@@ -112,7 +110,7 @@ async def add_asset_to_portfolio(
     return await portfolio_service.add_asset(portfolio_id, current_user.id, data)
 
 
-@router.delete('/{portfolio_id}/assets/{asset_id}')
+@router.delete('/{portfolio_id}/assets/{asset_id}', responses=responses(400, 404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при удалении актива портфеля')
 async def delete_asset_from_portfolio(
@@ -126,7 +124,7 @@ async def delete_asset_from_portfolio(
     return await portfolio_service.delete_asset(portfolio_id, current_user.id, asset_id)
 
 
-@router.get('/assets/{asset_id}')
+@router.get('/assets/{asset_id}', responses=responses(404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при получении информации об активе')
 async def get_asset(

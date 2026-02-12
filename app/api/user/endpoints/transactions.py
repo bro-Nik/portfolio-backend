@@ -3,23 +3,21 @@
 Все эндпоинты требуют валидный access token
 """
 
-# TODO: Добавить responses для автодокументации
-
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
+from app.core.responses import responses
 from app.dependencies import User, get_current_user, get_transaction_service
 from app.schemas import TransactionCreateRequest, TransactionResponseWithAssets
 from app.services import TransactionService
 
-router = APIRouter(prefix='/transactions', tags=['Transactions'])
+router = APIRouter(prefix='/transactions', tags=['Transactions'], responses=responses(401, 429, 500))
 
 
-@router.post('/')
+@router.post('/', status_code=201, responses=responses(400, 404, 409))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании транзакции')
 async def create_transaction(
@@ -32,7 +30,7 @@ async def create_transaction(
     return await transaction_service.create(current_user.id, data)
 
 
-@router.put('/{transaction_id}')
+@router.put('/{transaction_id}', responses=responses(400, 404, 409))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при изменении транзакции')
 async def update_transaction(
@@ -46,7 +44,7 @@ async def update_transaction(
     return await transaction_service.update(current_user.id, transaction_id, data)
 
 
-@router.delete('/{transaction_id}')
+@router.delete('/{transaction_id}', responses=responses(400, 404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при удалении транзакции')
 async def delete_transaction(

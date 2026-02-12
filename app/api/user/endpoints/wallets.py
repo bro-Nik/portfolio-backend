@@ -3,15 +3,13 @@
 Все эндпоинты требуют валидный access token
 """
 
-# TODO: Добавить responses для автодокументации
-
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
 from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
+from app.core.responses import responses
 from app.dependencies import User, get_current_user, get_wallet_asset_service, get_wallet_service
 from app.dependencies.services import get_transaction_service
 from app.schemas import (
@@ -24,7 +22,7 @@ from app.schemas import (
 )
 from app.services import TransactionService, WalletAssetService, WalletService
 
-router = APIRouter(prefix='/wallets', tags=['Wallets'])
+router = APIRouter(prefix='/wallets', tags=['Wallets'], responses=responses(401, 429, 500))
 
 
 @router.get('/')
@@ -39,7 +37,7 @@ async def get_user_wallets(
     return await wallet_service.get_many(current_user.id)
 
 
-@router.get('/{wallet_id}')
+@router.get('/{wallet_id}', responses=responses(404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при получении кошелька')
 async def get_user_wallet(
@@ -52,7 +50,7 @@ async def get_user_wallet(
     return await wallet_service.get(wallet_id, current_user.id)
 
 
-@router.post('/', status_code=201)
+@router.post('/', status_code=201, responses=responses(400, 409))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при создании кошелька')
 async def create_wallet(
@@ -65,7 +63,7 @@ async def create_wallet(
     return await wallet_service.create(current_user.id, data)
 
 
-@router.put('/{wallet_id}')
+@router.put('/{wallet_id}', responses=responses(400, 404, 409))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при изменении кошелька')
 async def update_wallet(
@@ -79,7 +77,7 @@ async def update_wallet(
     return await wallet_service.update(wallet_id, current_user.id, data)
 
 
-@router.delete('/{wallet_id}')
+@router.delete('/{wallet_id}', responses=responses(400, 404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при удалении кошелька')
 async def delete_wallet(
@@ -92,7 +90,7 @@ async def delete_wallet(
     return await wallet_service.delete(wallet_id, current_user.id)
 
 
-@router.get('/assets/{asset_id}')
+@router.get('/assets/{asset_id}', responses=responses(404))
 @limiter.limit('5/minute')
 @service_exception_handler('Ошибка при получении информации об активе')
 async def get_asset(

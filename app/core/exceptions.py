@@ -3,7 +3,6 @@ import functools
 from typing import Any, ParamSpec, TypeVar, cast
 
 from fastapi import HTTPException, status
-from pydantic import ValidationError as PydanticValidationError
 
 P = ParamSpec('P')
 F = TypeVar('F', bound=Callable[..., Any])
@@ -30,14 +29,13 @@ def service_exception_handler(
                 raise NotFoundException(str(e)) from e
             except ConflictError as e:
                 raise ConflictException(str(e)) from e
+            # TODO: Заменить на BadRequestError
             except ValidationError as e:
-                raise ValidationException(str(e)) from e
-            except PydanticValidationError as e:
-                # Сбор всех ошибок валидации в одну строку
-                errors = [err['msg'] for err in e.errors()]
-                raise ValidationException('; '.join(errors)) from e
+                raise BadRequestException(str(e)) from e
+            except BadRequestError as e:
+                raise BadRequestException(str(e)) from e
             except Exception as e:
-                raise BadRequestException(f'{default_message}: {e!s}') from e
+                raise InternalServerException(f'{default_message}: {e!s}') from e
         return cast('F', wrapper)
     return decorator
 
@@ -93,12 +91,12 @@ class ConflictException(HTTPException):
         )
 
 
-class ValidationException(HTTPException):
-    """422 - Ошибка валидации."""
+class InternalServerException(HTTPException):
+    """500 - Внутренняя ошибка сервера."""
 
-    def __init__(self, detail: str = 'Ошибка валидации') -> None:
+    def __init__(self, detail: str = 'Внутренняя ошибка сервера') -> None:
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=detail,
         )
 
@@ -141,6 +139,13 @@ class ConflictError(BusinessError):
 
 class ValidationError(BusinessError):
     """Ошибка валидации."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+class BadRequestError(BusinessError):
+    """Неверный запрос."""
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
