@@ -51,7 +51,7 @@ class TransactionService:
     ) -> TransactionResponseWithAssets:
         """Обновление транзакции."""
         await self._validate_transaction_data(data)
-        transaction = await self._get_or_raise(transaction_id)
+        transaction = await self._get_or_raise(transaction_id, user_id)
 
         # Уведомление сервисов о отмене транзакции
         await self._notify_services(user_id, transaction, cancel=True)
@@ -66,7 +66,7 @@ class TransactionService:
 
     async def delete(self, user_id: int, transaction_id: int) -> TransactionResponseWithAssets:
         """Удаление транзакции."""
-        transaction = await self._get_or_raise(transaction_id)
+        transaction = await self._get_or_raise(transaction_id, user_id)
 
         # Уведомление сервисов о отмене транзакции
         await self._notify_services(user_id, transaction, cancel=True)
@@ -95,10 +95,16 @@ class TransactionService:
             )
         return [TransactionResponse.model_validate(t) for t in transactions]
 
-    async def _get_or_raise(self, transaction_id: int) -> Transaction:
+    async def _get_or_raise(self, transaction_id: int, user_id: int) -> Transaction:
         transaction = await self.repo.get(transaction_id)
         if not transaction:
             raise NotFoundError(f'Транзакция id={transaction_id} не найдена')
+
+        if transaction.portfolio_id:
+            await self.portfolio_service._validate_portfolios(user_id, transaction.portfolio_id)
+        elif transaction.wallet_id:
+            await self.wallet_service._validate_wallets(user_id, transaction.wallet_id)
+
         return transaction
 
     async def _validate_transaction_data(self, data: TransactionCreateRequest) -> None:
