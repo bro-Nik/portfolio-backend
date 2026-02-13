@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     redis_max_connections: int = 20
     redis_timeout: int = 5
 
+    rate_limit_default: str = '10/minute'
+    rate_limit_auth: str = '10/minute'
+    rate_limit_public: str = '10/minute'
+
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',

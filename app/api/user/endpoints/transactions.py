@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
+from app.core.config import settings
 from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
 from app.core.responses import responses
@@ -18,7 +19,7 @@ router = APIRouter(prefix='/transactions', tags=['Transactions'], responses=resp
 
 
 @router.post('/', status_code=201, responses=responses(400, 404, 409))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при создании транзакции')
 async def create_transaction(
     request: Request,
@@ -31,7 +32,7 @@ async def create_transaction(
 
 
 @router.put('/{transaction_id}', responses=responses(400, 404, 409))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при изменении транзакции')
 async def update_transaction(
     request: Request,
@@ -45,7 +46,7 @@ async def update_transaction(
 
 
 @router.delete('/{transaction_id}', responses=responses(400, 404))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при удалении транзакции')
 async def delete_transaction(
     request: Request,

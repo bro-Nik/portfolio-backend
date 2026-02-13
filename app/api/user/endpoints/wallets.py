@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
+from app.core.config import settings
 from app.core.exceptions import service_exception_handler
 from app.core.rate_limit import limiter
 from app.core.responses import responses
@@ -25,7 +26,7 @@ router = APIRouter(prefix='/wallets', tags=['Wallets'], responses=responses(401,
 
 
 @router.get('/')
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при получении кошельков')
 async def get_user_wallets(
     request: Request,
@@ -37,7 +38,7 @@ async def get_user_wallets(
 
 
 @router.get('/{wallet_id}', responses=responses(404))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при получении кошелька')
 async def get_user_wallet(
     request: Request,
@@ -50,7 +51,7 @@ async def get_user_wallet(
 
 
 @router.post('/', status_code=201, responses=responses(400, 409))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при создании кошелька')
 async def create_wallet(
     request: Request,
@@ -63,7 +64,7 @@ async def create_wallet(
 
 
 @router.put('/{wallet_id}', responses=responses(400, 404, 409))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при изменении кошелька')
 async def update_wallet(
     request: Request,
@@ -77,7 +78,7 @@ async def update_wallet(
 
 
 @router.delete('/{wallet_id}', responses=responses(400, 404))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при удалении кошелька')
 async def delete_wallet(
     request: Request,
@@ -90,7 +91,7 @@ async def delete_wallet(
 
 
 @router.get('/assets/{asset_id}/transactions', responses=responses(404))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при получении транзакций актива')
 async def get_asset_transactions(
     request: Request,
@@ -103,7 +104,7 @@ async def get_asset_transactions(
 
 
 @router.get('/assets/{asset_id}/distribution', responses=responses(404))
-@limiter.limit('5/minute')
+@limiter.limit(settings.rate_limit_auth)
 @service_exception_handler('Ошибка при получении информации о распределении актива')
 async def get_asset(
     request: Request,
