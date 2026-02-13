@@ -9,3 +9,4 @@ pydantic[email]
 slowapi
 pydantic-settings
 redis
+alembic
