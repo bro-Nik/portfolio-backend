@@ -50,9 +50,9 @@ class Transaction(Base):
     price_usd: Mapped[Decimal | None] = mapped_column(Numeric)
     type: Mapped[str] = mapped_column(String(24))
     comment: Mapped[str | None] = mapped_column(String(1024))
-    wallet_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('wallet.id'))
+    wallet_id: Mapped[int | None] = mapped_column(Integer)
     wallet2_id: Mapped[int | None] = mapped_column(Integer)
-    portfolio_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('portfolio.id'))
+    portfolio_id: Mapped[int | None] = mapped_column(Integer)
     portfolio2_id: Mapped[int | None] = mapped_column(Integer)
     order: Mapped[bool | None] = mapped_column(Boolean)
 

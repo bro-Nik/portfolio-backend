@@ -73,6 +73,9 @@ force-sort-within-sections = true     # Сортировка внутри сек
     "E501",     # слишком длинная строка
 ]
 
+# Правила для Alembic миграций
+"app/migrations/versions/*.py" = ["ALL"]
+
 # Настройки Pyright
 [tool.pyright]
 reportMissingImports = false
