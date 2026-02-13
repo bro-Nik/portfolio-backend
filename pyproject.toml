@@ -1,0 +1,99 @@
+# Основные настройки Ruff
+[tool.ruff]
+# Выбрать все проверки
+select = ["ALL"]
+# Длина строки
+line-length = 100
+# Целевая версия Python
+target-version = "py313"
+
+# Игнорируемые правила
+ignore = [
+    # Игнорировать проверку кириллических символов
+    "RUF001", "RUF002", "RUF003",
+    
+    # Игнорировать docstring для методов __init__ и модулей
+    "D107",  # Отсутствие docstring в __init__
+    "D100",  # Отсутствие docstring в public module
+    "D104",  # Отсутствие docstring в public package
+    
+    # Игнорировать строгие проверки для обработки ошибок
+    "EM101", "EM102",  # Слишком широкие/узкие исключения
+    "TRY003",         # Неправильный тип исключения
+    
+    # Игнорировать строгие проверки для TODO комментариев
+    "TD002", "TD003",
+]
+
+# Настройки форматирования
+[tool.ruff.format]
+quote-style = "single"
+
+# Настройки линтеров
+[tool.ruff.lint]
+
+# Настройки кавычек (flake8-quotes)
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"      # Одинарные кавычки для inline строк
+multiline-quotes = "double"   # Двойные кавычки для многострочных строк
+docstring-quotes = "double"   # Двойные кавычки для docstring
+
+# Настройки сортировки импортов (isort)
+[tool.ruff.lint.isort]
+known-first-party = ["app"]           # Известные first-party модули
+lines-between-types = 1               # Пустые строки между типами импортов
+combine-as-imports = true             # Объединять as-импорты
+force-sort-within-sections = true     # Сортировка внутри секций
+
+# Игнорирование по файлам
+[tool.ruff.lint.per-file-ignores]
+# Игнорировать неиспользуемые импорты в __init__.py файлах
+"__init__.py" = ["F401"]
+
+# Правила в роутах
+"**/endpoints/**/*.py" = [
+    "PLR0913",  # Максимальное количество аргументов
+    "ARG001",   # Неиспользуемый аргумент (для request в rate limiting)
+]
+
+# Правила в тестах
+"tests/**/*.py" = [
+    "S101",     # использование assert
+    "ANN201",   # отсутствует аннотация типа возврата
+    "ANN001",   # отсутствует аннотация типа
+    "ANN202",   # отсутствует аннотация типа возврата
+    "ANN003",   # отсутствует аннотация типа для *args/**kwargs
+    "S105",     # жестко заданный пароль в коде
+    "S106",     # жестко заданный пароль в коде
+    "PLR2004",  # магические числа
+    "SLF001",   # обращение к приватным членам
+    "D101",     # отсутствует docstring в публичном классе
+    "D102",     # отсутствует docstring в публичном методе
+    "D103",     # отсутствует docstring в публичной функции
+    "E501",     # слишком длинная строка
+]
+
+# Правила для Alembic миграций
+"app/migrations/versions/*.py" = ["ALL"]
+
+# Настройки Pyright
+[tool.pyright]
+reportMissingImports = false
+reportMissingModuleSource = false
+include = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+addopts = [
+    "--cov=app",
+    "--cov-report=html:reports/coverage-html",
+    "--cov-report=xml:reports/coverage.xml",
+    "--junitxml=reports/junit.xml",
+
+]
